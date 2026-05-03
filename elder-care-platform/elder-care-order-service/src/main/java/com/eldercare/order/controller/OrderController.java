@@ -7,6 +7,8 @@ import com.eldercare.common.annotation.RequireRole;
 import com.eldercare.common.constant.RoleConstants;
 import com.eldercare.common.response.Result;
 import com.eldercare.order.service.OrderAppService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,6 +20,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/orders")
+@Tag(name = "预约单接口", description = "发布订单、公共池、抢单、取消和完成")
 public class OrderController {
     /** 订单业务服务，封装下单、抢单、取消和完成等核心规则。 */
     private final OrderAppService service;
@@ -41,6 +44,7 @@ public class OrderController {
     @PostMapping
     @RepeatSubmit(expireSeconds = 5)
     @RequireRole({RoleConstants.ELDER, RoleConstants.FAMILY})
+    @Operation(summary = "发布预约单", description = "支持指定志愿者 ASSIGNED 和公共订单池 PUBLIC 两种模式")
     public Result<OrderVO> create(@Valid @RequestBody OrderCreateDTO dto) {
         return Result.success(service.create(dto));
     }
@@ -52,6 +56,7 @@ public class OrderController {
      * @return 我的订单列表。
      */
     @GetMapping("/my")
+    @Operation(summary = "查询我的订单", description = "老人查自己的，亲情号查自己代发的，志愿者查自己接到的")
     public Result<List<OrderVO>> my() {
         return Result.success(service.myOrders());
     }
@@ -64,6 +69,7 @@ public class OrderController {
      */
     @GetMapping("/pool")
     @RequireRole(RoleConstants.VOLUNTEER)
+    @Operation(summary = "查询公共订单池", description = "志愿者查看本社区待抢单订单")
     public Result<List<OrderVO>> pool() {
         return Result.success(service.pool());
     }
@@ -78,6 +84,7 @@ public class OrderController {
     @PostMapping("/{orderId}/grab")
     @RepeatSubmit(expireSeconds = 5)
     @RequireRole(RoleConstants.VOLUNTEER)
+    @Operation(summary = "志愿者抢单", description = "使用 Redisson 锁和 MySQL 条件更新保证并发安全")
     public Result<Void> grab(@PathVariable Long orderId) {
         service.grab(orderId);
         return Result.success();
@@ -93,6 +100,7 @@ public class OrderController {
     @PostMapping("/{orderId}/cancel")
     @RepeatSubmit(expireSeconds = 5)
     @RequireRole({RoleConstants.ELDER, RoleConstants.FAMILY})
+    @Operation(summary = "取消订单", description = "老人或代发亲情号取消有权限操作的订单")
     public Result<Void> cancel(@PathVariable Long orderId) {
         service.cancel(orderId);
         return Result.success();
@@ -108,6 +116,7 @@ public class OrderController {
     @PostMapping("/{orderId}/complete")
     @RepeatSubmit(expireSeconds = 5)
     @RequireRole(RoleConstants.VOLUNTEER)
+    @Operation(summary = "完成订单", description = "实际接单志愿者完成订单")
     public Result<Void> complete(@PathVariable Long orderId) {
         service.complete(orderId);
         return Result.success();

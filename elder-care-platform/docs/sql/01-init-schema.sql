@@ -2,6 +2,9 @@
 -- MySQL 版本要求：MySQL 8.x。
 -- 设计原则：按微服务拆库，每个核心业务表都保留 community_id，方便社区级数据隔离。
 
+-- 强制当前 SQL 会话使用 utf8mb4，避免 mysql 客户端默认 latin1 导致中文注释或数据乱码。
+SET NAMES utf8mb4;
+
 -- 创建用户服务数据库。
 CREATE DATABASE IF NOT EXISTS user_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -26,7 +29,9 @@ USE user_db;
 CREATE TABLE IF NOT EXISTS user_account (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '用户账号主键',
     community_id BIGINT UNSIGNED NOT NULL COMMENT '所属社区ID，社区级平台的数据隔离字段',
-    phone VARCHAR(20) NOT NULL COMMENT '登录手机号',
+    phone VARCHAR(20) DEFAULT NULL COMMENT '登录手机号，微信首次静默登录时可为空，绑定手机号后写入',
+    open_id VARCHAR(128) DEFAULT NULL COMMENT '微信小程序openId，同一小程序内唯一',
+    union_id VARCHAR(128) DEFAULT NULL COMMENT '微信开放平台unionId，未绑定开放平台时可为空',
     password_hash VARCHAR(255) DEFAULT NULL COMMENT '密码哈希，小程序验证码登录时可以为空',
     nickname VARCHAR(64) DEFAULT NULL COMMENT '用户昵称',
     avatar_url VARCHAR(512) DEFAULT NULL COMMENT '头像地址',
@@ -34,12 +39,16 @@ CREATE TABLE IF NOT EXISTS user_account (
     id_card_no VARCHAR(32) DEFAULT NULL COMMENT '身份证号，建议业务层加密或脱敏存储',
     gender TINYINT NOT NULL DEFAULT 0 COMMENT '性别：0未知，1男，2女',
     account_status TINYINT NOT NULL DEFAULT 1 COMMENT '账号状态：1正常，2禁用',
+    current_role VARCHAR(32) DEFAULT NULL COMMENT '当前启用角色，多身份账号切换时更新',
+    refresh_token_version INT NOT NULL DEFAULT 0 COMMENT '刷新令牌版本，退出登录或强制下线时递增',
     last_login_time DATETIME DEFAULT NULL COMMENT '最近登录时间',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0未删除，1已删除',
     PRIMARY KEY (id),
     UNIQUE KEY uk_user_account_phone (phone),
+    UNIQUE KEY uk_user_account_open_id (open_id),
+    KEY idx_user_account_union_id (union_id),
     KEY idx_user_account_community (community_id),
     KEY idx_user_account_status (account_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户账号表';

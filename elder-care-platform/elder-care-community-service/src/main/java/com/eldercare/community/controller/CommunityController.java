@@ -3,6 +3,8 @@ package com.eldercare.community.controller;
 import com.eldercare.api.vo.CommunityVO;
 import com.eldercare.common.response.Result;
 import com.eldercare.community.service.CommunityAppService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/communities")
+@Tag(name = "社区接口", description = "当前社区信息查询")
 public class CommunityController {
 
     /**
@@ -35,6 +38,7 @@ public class CommunityController {
      * @return 当前社区信息。
      */
     @GetMapping("/current")
+    @Operation(summary = "查询当前社区", description = "根据用户上下文查询当前所属社区")
     public Result<CommunityVO> current() {
         // 调用业务服务查询当前社区。
         return Result.success(communityAppService.getCurrentCommunity());

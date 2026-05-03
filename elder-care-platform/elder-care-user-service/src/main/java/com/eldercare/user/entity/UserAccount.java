@@ -2,6 +2,7 @@ package com.eldercare.user.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.time.LocalDateTime;
@@ -27,6 +28,16 @@ public class UserAccount {
      * 登录手机号。
      */
     private String phone;
+
+    /**
+     * 微信小程序 openId，同一个小程序内用户唯一。
+     */
+    private String openId;
+
+    /**
+     * 微信开放平台 unionId，绑定开放平台后跨应用唯一。
+     */
+    private String unionId;
 
     /**
      * 密码哈希。
@@ -64,6 +75,16 @@ public class UserAccount {
     private Integer accountStatus;
 
     /**
+     * 当前启用角色，用于多身份账号切换。
+     */
+    private String currentRole;
+
+    /**
+     * 刷新令牌版本号，退出登录或强制下线时递增使旧 refresh token 失效。
+     */
+    private Integer refreshTokenVersion;
+
+    /**
      * 最近登录时间。
      */
     private LocalDateTime lastLoginTime;
@@ -81,6 +102,7 @@ public class UserAccount {
     /**
      * 逻辑删除。
      */
+    @TableLogic
     private Integer deleted;
 
     public Long getId() {
@@ -105,6 +127,22 @@ public class UserAccount {
 
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public String getOpenId() {
+        return openId;
+    }
+
+    public void setOpenId(String openId) {
+        this.openId = openId;
+    }
+
+    public String getUnionId() {
+        return unionId;
+    }
+
+    public void setUnionId(String unionId) {
+        this.unionId = unionId;
     }
 
     public String getPasswordHash() {
@@ -161,6 +199,22 @@ public class UserAccount {
 
     public void setAccountStatus(Integer accountStatus) {
         this.accountStatus = accountStatus;
+    }
+
+    public String getCurrentRole() {
+        return currentRole;
+    }
+
+    public void setCurrentRole(String currentRole) {
+        this.currentRole = currentRole;
+    }
+
+    public Integer getRefreshTokenVersion() {
+        return refreshTokenVersion;
+    }
+
+    public void setRefreshTokenVersion(Integer refreshTokenVersion) {
+        this.refreshTokenVersion = refreshTokenVersion;
     }
 
     public LocalDateTime getLastLoginTime() {

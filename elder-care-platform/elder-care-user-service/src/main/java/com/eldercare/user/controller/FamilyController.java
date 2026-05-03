@@ -6,6 +6,8 @@ import com.eldercare.common.annotation.RequireRole;
 import com.eldercare.common.constant.RoleConstants;
 import com.eldercare.common.response.Result;
 import com.eldercare.user.service.UserAppService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,6 +23,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/family")
 @RequireRole(RoleConstants.FAMILY)
+@Tag(name = "亲情号接口", description = "亲情号绑定老人和查询绑定老人")
 public class FamilyController {
 
     /**
@@ -45,6 +48,7 @@ public class FamilyController {
      * @return 成功响应。
      */
     @PostMapping("/bind")
+    @Operation(summary = "绑定老人", description = "亲情号绑定同社区老人")
     public Result<Void> bind(@Valid @RequestBody FamilyBindDTO bindDTO) {
         // 调用业务服务绑定老人。
         userAppService.bindElder(bindDTO);
@@ -58,6 +62,7 @@ public class FamilyController {
      * @return 老人列表。
      */
     @GetMapping("/elders")
+    @Operation(summary = "查询绑定老人", description = "查询当前亲情号已经绑定的老人列表")
     public Result<List<ElderProfileVO>> elders() {
         // 调用业务服务查询绑定老人。
         return Result.success(userAppService.listBoundElders());

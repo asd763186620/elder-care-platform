@@ -6,6 +6,8 @@ import com.eldercare.common.annotation.RequireRole;
 import com.eldercare.common.constant.RoleConstants;
 import com.eldercare.common.response.Result;
 import com.eldercare.user.service.UserAppService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/elders")
 @RequireRole(RoleConstants.ELDER)
+@Tag(name = "老人资料接口", description = "老人档案创建和维护")
 public class ElderController {
 
     /**
@@ -42,6 +45,7 @@ public class ElderController {
      * @return 老人资料。
      */
     @PostMapping
+    @Operation(summary = "新增老人资料", description = "当前老人账号创建自己的老人档案")
     public Result<ElderProfileVO> create(@Valid @RequestBody ElderCreateDTO createDTO) {
         // 调用业务服务创建老人资料。
         return Result.success(userAppService.createElder(createDTO));

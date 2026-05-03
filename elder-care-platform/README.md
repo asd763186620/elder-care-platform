@@ -43,9 +43,15 @@ docker compose up -d
 
 ```bash
 docker cp docs/sql/01-init-schema.sql elder-care-mysql:/tmp/01-init-schema.sql
+docker cp docs/sql/02-migrate-user-wechat-login.sql elder-care-mysql:/tmp/02-migrate-user-wechat-login.sql
+docker cp docs/sql/03-fix-demo-data-charset.sql elder-care-mysql:/tmp/03-fix-demo-data-charset.sql
 docker cp docs/sql/init.sql elder-care-mysql:/tmp/init.sql
-docker exec elder-care-mysql mysql -uroot -proot123456 -e "source /tmp/01-init-schema.sql"
-docker exec elder-care-mysql mysql -uroot -proot123456 -e "source /tmp/init.sql"
+docker exec elder-care-mysql mysql -uroot -proot123456 --default-character-set=utf8mb4 -e "source /tmp/01-init-schema.sql"
+# 如果你是旧库升级，执行下面这条；全新库已由 01-init-schema.sql 包含这些字段，可以跳过。
+docker exec elder-care-mysql mysql -uroot -proot123456 --default-character-set=utf8mb4 -e "source /tmp/02-migrate-user-wechat-login.sql"
+docker exec elder-care-mysql mysql -uroot -proot123456 --default-character-set=utf8mb4 -e "source /tmp/init.sql"
+# 如果旧版 init.sql 已经导入出中文乱码，执行下面这条修复固定演示数据。
+docker exec elder-care-mysql mysql -uroot -proot123456 --default-character-set=utf8mb4 -e "source /tmp/03-fix-demo-data-charset.sql"
 ```
 
 3. 编译项目：

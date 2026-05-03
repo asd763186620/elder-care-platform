@@ -11,27 +11,27 @@ spring:
         - id: elder-care-user-service
           uri: lb://elder-care-user-service
           predicates:
-            - Path=/api/user/**,/auth/**,/users/**,/elders/**,/family/**,/internal/users/**,/internal/family/**
+            - Path=/api/user/**,/auth/**,/users/**,/elders/**,/family/**,/internal/users/**,/internal/family/**,/admin/users/**
         # 社区服务路由。
         - id: elder-care-community-service
           uri: lb://elder-care-community-service
           predicates:
-            - Path=/api/community/**,/communities/**,/service-items/**,/internal/service-items/**
+            - Path=/api/community/**,/communities/**,/service-items/**,/internal/service-items/**,/admin/community/**
         # 志愿者服务路由。
         - id: elder-care-volunteer-service
           uri: lb://elder-care-volunteer-service
           predicates:
-            - Path=/api/volunteer/**,/volunteers/**,/internal/volunteers/**
+            - Path=/api/volunteer/**,/volunteers/**,/internal/volunteers/**,/admin/volunteers/**
         # 订单服务路由。
         - id: elder-care-order-service
           uri: lb://elder-care-order-service
           predicates:
-            - Path=/api/order/**,/orders/**
+            - Path=/api/order/**,/orders/**,/admin/orders/**
         # 通知服务路由。
         - id: elder-care-notify-service
           uri: lb://elder-care-notify-service
           predicates:
-            - Path=/api/notify/**
+            - Path=/api/notify/**,/admin/notify-records/**
         # 用户服务 OpenAPI 文档路由。
         - id: elder-care-user-service-docs
           uri: lb://elder-care-user-service

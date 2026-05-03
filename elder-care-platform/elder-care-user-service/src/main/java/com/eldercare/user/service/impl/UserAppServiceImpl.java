@@ -1,9 +1,7 @@
 package com.eldercare.user.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.eldercare.api.dto.ElderCreateDTO;
-import com.eldercare.api.dto.FamilyBindDTO;
-import com.eldercare.api.dto.MockLoginDTO;
+import com.eldercare.api.dto.*;
 import com.eldercare.api.vo.ElderProfileVO;
 import com.eldercare.api.vo.LoginVO;
 import com.eldercare.api.vo.UserInfoVO;
@@ -23,13 +21,21 @@ import com.eldercare.user.mapper.FamilyElderBindMapper;
 import com.eldercare.user.mapper.UserAccountMapper;
 import com.eldercare.user.mapper.UserRoleMapper;
 import com.eldercare.user.service.UserAppService;
+import com.eldercare.user.wechat.WechatCode2SessionClient;
+import com.eldercare.user.wechat.WechatPhoneNumber;
+import com.eldercare.user.wechat.WechatPhoneNumberClient;
+import com.eldercare.user.wechat.WechatSession;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * 用户服务业务实现。
@@ -48,9 +54,19 @@ public class UserAppServiceImpl implements UserAppService {
     private static final int STATUS_NORMAL = 1;
 
     /**
+     * 禁用状态。
+     */
+    private static final int STATUS_DISABLED = 2;
+
+    /**
      * 已绑定状态。
      */
     private static final int BIND_STATUS_BOUND = 2;
+
+    /**
+     * 系统允许的用户角色集合。
+     */
+    private static final Set<String> ALLOWED_ROLES = Set.of(RoleConstants.ELDER, RoleConstants.FAMILY, RoleConstants.VOLUNTEER, RoleConstants.ADMIN);
 
     /**
      * 用户账号 Mapper。
@@ -78,13 +94,31 @@ public class UserAppServiceImpl implements UserAppService {
     private final JwtUtil jwtUtil;
 
     /**
+     * 微信 code2session 客户端。
+     */
+    private final WechatCode2SessionClient wechatCode2SessionClient;
+
+    /**
+     * 微信手机号解析客户端。
+     */
+    private final WechatPhoneNumberClient wechatPhoneNumberClient;
+
+    /**
+     * Redis 客户端，用于保存 refresh token。
+     */
+    private final StringRedisTemplate stringRedisTemplate;
+
+    /**
      * 构造业务服务。
      */
     public UserAppServiceImpl(UserAccountMapper userAccountMapper,
                               UserRoleMapper userRoleMapper,
                               ElderProfileMapper elderProfileMapper,
                               FamilyElderBindMapper familyElderBindMapper,
-                              JwtUtil jwtUtil) {
+                              JwtUtil jwtUtil,
+                              WechatCode2SessionClient wechatCode2SessionClient,
+                              WechatPhoneNumberClient wechatPhoneNumberClient,
+                              StringRedisTemplate stringRedisTemplate) {
         // 保存用户账号 Mapper。
         this.userAccountMapper = userAccountMapper;
         // 保存用户角色 Mapper。
@@ -95,6 +129,12 @@ public class UserAppServiceImpl implements UserAppService {
         this.familyElderBindMapper = familyElderBindMapper;
         // 保存 JWT 工具类。
         this.jwtUtil = jwtUtil;
+        // 保存微信登录客户端。
+        this.wechatCode2SessionClient = wechatCode2SessionClient;
+        // 保存微信手机号解析客户端。
+        this.wechatPhoneNumberClient = wechatPhoneNumberClient;
+        // 保存 Redis 客户端。
+        this.stringRedisTemplate = stringRedisTemplate;
     }
 
     /**
@@ -109,18 +149,241 @@ public class UserAppServiceImpl implements UserAppService {
         UserAccount account = resolveMockLoginAccount(loginDTO, communityId);
         // 解析登录角色，不传时默认老人。
         List<String> roles = resolveRoles(loginDTO.roles());
+        // lambda 中引用的账号 ID 必须是实际 final。
+        Long accountId = account.getId();
         // 确保账号拥有这些角色。
-        roles.forEach(role -> ensureRole(communityId, account.getId(), role));
+        roles.forEach(role -> ensureRole(communityId, accountId, role));
+        // 当前角色使用第一个角色。
+        account.setCurrentRole(roles.get(0));
         // 更新最近登录时间。
         account.setLastLoginTime(LocalDateTime.now());
         // 持久化最近登录时间。
         userAccountMapper.updateById(account);
         // 生成 JWT 登录用户载荷。
         LoginUser loginUser = new LoginUser(account.getId(), communityId, roles, account.getPhone());
-        // 生成 JWT。
-        String token = jwtUtil.generateToken(loginUser);
         // 返回登录结果，主角色使用第一个角色。
-        return new LoginVO(account.getId(), loginUser.role(), token);
+        return issueLoginVO(account, communityId, roles);
+    }
+
+    /**
+     * 微信小程序登录。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public LoginVO miniAppLogin(MiniAppLoginDTO loginDTO) {
+        // 社区 ID 不传时使用默认演示社区。
+        Long communityId = loginDTO.communityId() == null ? DEFAULT_COMMUNITY_ID : loginDTO.communityId();
+        // 调用微信 code2session，真实环境走微信接口，本地未配置时走 mock。
+        WechatSession session = wechatCode2SessionClient.code2Session(loginDTO.code());
+        // 按 openId 查询小程序账号。
+        UserAccount account = userAccountMapper.selectOne(new LambdaQueryWrapper<UserAccount>()
+                .eq(UserAccount::getOpenId, session.openId())
+                .eq(UserAccount::getDeleted, 0)
+                .last("LIMIT 1"));
+        // 首次登录时自动注册账号。
+        if (account == null) {
+            // 创建新的小程序账号。
+            account = new UserAccount();
+            // 写入当前社区。
+            account.setCommunityId(communityId);
+            // 写入微信 openId。
+            account.setOpenId(session.openId());
+            // 写入 unionId，可能为空。
+            account.setUnionId(session.unionId());
+            // 设置默认昵称。
+            account.setNickname("微信用户");
+            // 设置未知性别。
+            account.setGender(0);
+            // 设置正常状态。
+            account.setAccountStatus(STATUS_NORMAL);
+            // 初始化刷新令牌版本。
+            account.setRefreshTokenVersion(0);
+            // 设置未删除。
+            account.setDeleted(0);
+            // 插入账号。
+            userAccountMapper.insert(account);
+        } else {
+            // 已有账号但社区不一致时，社区级平台不允许静默跨社区登录。
+            if (!Objects.equals(account.getCommunityId(), communityId)) {
+                // 抛出跨社区错误。
+                throw new BizException(ErrorCode.FORBIDDEN, "该微信账号已属于其他社区");
+            }
+            // 禁用账号不能登录。
+            ensureAccountEnabled(account);
+            // 更新 unionId，兼容后续绑定开放平台后微信才返回 unionId 的情况。
+            if (StringUtils.hasText(session.unionId()) && !Objects.equals(account.getUnionId(), session.unionId())) {
+                // 写入新的 unionId。
+                account.setUnionId(session.unionId());
+            }
+        }
+        // 解析登录角色，不传时默认老人。
+        List<String> roles = resolveRoles(loginDTO.roles());
+        // lambda 中引用的账号 ID 必须是实际 final。
+        Long accountId = account.getId();
+        // 确保账号拥有这些角色。
+        roles.forEach(role -> ensureRole(communityId, accountId, role));
+        // 当前角色使用第一个角色。
+        account.setCurrentRole(roles.get(0));
+        // 更新最近登录时间。
+        account.setLastLoginTime(LocalDateTime.now());
+        // 保存账号变更。
+        userAccountMapper.updateById(account);
+        // 签发登录结果。
+        return issueLoginVO(account, communityId, roles);
+    }
+
+    /**
+     * 刷新访问令牌。
+     */
+    @Override
+    public LoginVO refreshToken(String refreshToken) {
+        // 根据 refresh token 查询 Redis 会话。
+        String value = stringRedisTemplate.opsForValue().get(refreshKey(refreshToken));
+        // Redis 中不存在说明 refresh token 过期或已退出。
+        if (!StringUtils.hasText(value)) {
+            // 抛出未登录异常。
+            throw new BizException(ErrorCode.UNAUTHORIZED, "刷新令牌无效或已过期");
+        }
+        // 格式：userId:communityId:version。
+        String[] parts = value.split(":");
+        // 格式错误时拒绝刷新。
+        if (parts.length != 3) {
+            // 抛出未登录异常。
+            throw new BizException(ErrorCode.UNAUTHORIZED, "刷新令牌格式错误");
+        }
+        // 解析用户 ID。
+        Long userId = Long.valueOf(parts[0]);
+        // 解析社区 ID。
+        Long communityId = Long.valueOf(parts[1]);
+        // 解析刷新令牌版本。
+        Integer version = Integer.valueOf(parts[2]);
+        // 查询当前账号。
+        UserAccount account = selectAccountInCommunity(communityId, userId);
+        // 账号不存在时拒绝刷新。
+        if (account == null) {
+            // 抛出未登录异常。
+            throw new BizException(ErrorCode.UNAUTHORIZED, "用户不存在");
+        }
+        // 禁用账号不能刷新 token。
+        ensureAccountEnabled(account);
+        // 账号版本不一致说明已经退出或被强制下线。
+        if (!Objects.equals(account.getRefreshTokenVersion(), version)) {
+            // 删除旧 refresh token。
+            stringRedisTemplate.delete(refreshKey(refreshToken));
+            // 抛出未登录异常。
+            throw new BizException(ErrorCode.UNAUTHORIZED, "登录状态已失效");
+        }
+        // 查询当前账号启用角色。
+        List<String> roles = listRoleCodes(communityId, userId);
+        // 按账号当前角色调整角色顺序，保证刷新后主角色不漂移。
+        roles = orderRolesByCurrentRole(roles, account.getCurrentRole());
+        // 没有角色时拒绝刷新。
+        if (roles.isEmpty()) {
+            // 抛出无权限异常。
+            throw new BizException(ErrorCode.FORBIDDEN, "账号没有可用角色");
+        }
+        // 旧 refresh token 用完即删，降低泄露后可重复使用的风险。
+        stringRedisTemplate.delete(refreshKey(refreshToken));
+        // 重新签发访问令牌和刷新令牌。
+        return issueLoginVO(account, communityId, roles);
+    }
+
+    /**
+     * 退出登录。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void logout() {
+        // 读取当前用户上下文。
+        UserInfoDTO userInfo = loadRequiredUser();
+        // 查询当前账号。
+        UserAccount account = selectAccountInCommunity(userInfo.communityId(), userInfo.userId());
+        // 账号不存在时无需继续。
+        if (account == null) {
+            // 抛出未登录异常。
+            throw new BizException(ErrorCode.UNAUTHORIZED, "当前用户不存在");
+        }
+        // 递增刷新令牌版本，让该账号之前签发的 refresh token 全部失效。
+        account.setRefreshTokenVersion((account.getRefreshTokenVersion() == null ? 0 : account.getRefreshTokenVersion()) + 1);
+        // 更新账号。
+        userAccountMapper.updateById(account);
+    }
+
+    /**
+     * 绑定手机号。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void bindPhone(PhoneBindDTO bindDTO) {
+        // 读取当前用户上下文。
+        UserInfoDTO userInfo = loadRequiredUser();
+        // 查询当前账号。
+        UserAccount account = selectAccountInCommunity(userInfo.communityId(), userInfo.userId());
+        // 账号不存在时拒绝绑定。
+        if (account == null) {
+            // 抛出未登录异常。
+            throw new BizException(ErrorCode.UNAUTHORIZED, "当前用户不存在");
+        }
+        // 查询手机号是否已被其他账号使用。
+        UserAccount existed = userAccountMapper.selectOne(new LambdaQueryWrapper<UserAccount>()
+                .eq(UserAccount::getPhone, bindDTO.phone())
+                .eq(UserAccount::getDeleted, 0)
+                .last("LIMIT 1"));
+        // 手机号已被其他账号绑定时拒绝。
+        if (existed != null && !Objects.equals(existed.getId(), account.getId())) {
+            // 抛出重复异常。
+            throw new BizException(ErrorCode.DATA_EXISTS, "手机号已绑定其他账号");
+        }
+        // 绑定手机号。
+        account.setPhone(bindDTO.phone());
+        // 更新账号。
+        userAccountMapper.updateById(account);
+    }
+
+    /**
+     * 使用微信手机号凭证绑定手机号。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void bindWechatPhone(WechatPhoneBindDTO bindDTO) {
+        // 调用微信接口或本地 mock 获取可信手机号。
+        WechatPhoneNumber phoneNumber = wechatPhoneNumberClient.getPhoneNumber(bindDTO.code());
+        // 复用统一手机号绑定逻辑，避免重复校验。
+        bindPhone(new PhoneBindDTO(phoneNumber.purePhoneNumber()));
+    }
+
+    /**
+     * 切换当前角色。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public LoginVO switchRole(SwitchRoleDTO roleDTO) {
+        // 读取当前用户上下文。
+        UserInfoDTO userInfo = loadRequiredUser();
+        // 查询账号。
+        UserAccount account = selectAccountInCommunity(userInfo.communityId(), userInfo.userId());
+        // 账号不存在时拒绝切换。
+        if (account == null) {
+            // 抛出未登录异常。
+            throw new BizException(ErrorCode.UNAUTHORIZED, "当前用户不存在");
+        }
+        // 禁用账号不能切换角色。
+        ensureAccountEnabled(account);
+        // 当前可用角色列表。
+        List<String> roles = listRoleCodes(userInfo.communityId(), userInfo.userId());
+        // 目标角色必须已拥有。
+        if (!roles.contains(roleDTO.roleCode())) {
+            // 抛出无权限异常。
+            throw new BizException(ErrorCode.FORBIDDEN, "账号没有该角色");
+        }
+        // 保存当前角色。
+        account.setCurrentRole(roleDTO.roleCode());
+        // 更新账号。
+        userAccountMapper.updateById(account);
+        // 让目标角色排在第一位。
+        List<String> orderedRoles = java.util.stream.Stream.concat(java.util.stream.Stream.of(roleDTO.roleCode()), roles.stream().filter(role -> !role.equals(roleDTO.roleCode()))).toList();
+        // 重新签发 Token。
+        return issueLoginVO(account, userInfo.communityId(), orderedRoles);
     }
 
     /**
@@ -324,6 +587,8 @@ public class UserAppServiceImpl implements UserAppService {
                 // 抛出资源不存在异常。
                 throw new BizException(ErrorCode.NOT_FOUND, "用户不存在");
             }
+            // 禁用账号不能登录。
+            ensureAccountEnabled(account);
             // 返回已有账号。
             return account;
         }
@@ -344,6 +609,8 @@ public class UserAppServiceImpl implements UserAppService {
                 // 抛出跨社区错误。
                 throw new BizException(ErrorCode.FORBIDDEN, "手机号已属于其他社区");
             }
+            // 禁用账号不能登录。
+            ensureAccountEnabled(account);
             // 返回已有账号。
             return account;
         }
@@ -359,6 +626,10 @@ public class UserAppServiceImpl implements UserAppService {
         newAccount.setGender(0);
         // 设置正常状态。
         newAccount.setAccountStatus(STATUS_NORMAL);
+        // 初始化当前角色为空，登录流程稍后写入。
+        newAccount.setCurrentRole(null);
+        // 初始化刷新令牌版本。
+        newAccount.setRefreshTokenVersion(0);
         // 设置未删除。
         newAccount.setDeleted(0);
         // 插入账号。
@@ -377,7 +648,9 @@ public class UserAppServiceImpl implements UserAppService {
             return List.of(RoleConstants.ELDER);
         }
         // 去掉空白角色。
-        List<String> cleaned = roles.stream().filter(StringUtils::hasText).map(String::trim).distinct().toList();
+        List<String> cleaned = roles.stream().filter(StringUtils::hasText).map(String::trim).map(String::toUpperCase).distinct().toList();
+        // 校验角色必须是系统允许的枚举值。
+        cleaned.forEach(this::checkRoleCode);
         // 清理后为空也默认老人。
         return cleaned.isEmpty() ? List.of(RoleConstants.ELDER) : cleaned;
     }
@@ -386,6 +659,8 @@ public class UserAppServiceImpl implements UserAppService {
      * 确保用户拥有指定角色。
      */
     private void ensureRole(Long communityId, Long userId, String roleCode) {
+        // 先校验角色编码合法性，避免写入脏角色。
+        checkRoleCode(roleCode);
         // 查询角色是否已经存在。
         UserRoleEntity existed = userRoleMapper.selectOne(new LambdaQueryWrapper<UserRoleEntity>()
                 .eq(UserRoleEntity::getCommunityId, communityId)
@@ -446,6 +721,92 @@ public class UserAppServiceImpl implements UserAppService {
                 .stream()
                 .map(UserRoleEntity::getRoleCode)
                 .toList();
+    }
+
+    /**
+     * 按当前角色调整角色列表顺序。
+     *
+     * @param roles       原角色列表。
+     * @param currentRole 当前角色。
+     * @return 当前角色排在第一位的新列表。
+     */
+    private List<String> orderRolesByCurrentRole(List<String> roles, String currentRole) {
+        // 当前角色为空或不在角色列表中时保持原顺序。
+        if (!StringUtils.hasText(currentRole) || roles == null || !roles.contains(currentRole)) {
+            // 返回原列表。
+            return roles;
+        }
+        // 将当前角色放在第一位，其余角色保持原有顺序。
+        return java.util.stream.Stream.concat(java.util.stream.Stream.of(currentRole), roles.stream().filter(role -> !role.equals(currentRole))).toList();
+    }
+
+    /**
+     * 校验角色编码是否合法。
+     *
+     * @param roleCode 角色编码。
+     */
+    private void checkRoleCode(String roleCode) {
+        // 角色为空或不是系统允许角色时拒绝。
+        if (!StringUtils.hasText(roleCode) || !ALLOWED_ROLES.contains(roleCode)) {
+            // 抛出参数异常。
+            throw new BizException(ErrorCode.PARAM_ERROR, "不支持的角色：" + roleCode);
+        }
+    }
+
+    /**
+     * 签发访问令牌和刷新令牌。
+     *
+     * @param account     用户账号。
+     * @param communityId 当前社区 ID。
+     * @param roles       当前账号角色。
+     * @return 登录响应。
+     */
+    private LoginVO issueLoginVO(UserAccount account, Long communityId, List<String> roles) {
+        // 禁用账号不能签发 Token。
+        ensureAccountEnabled(account);
+        // 角色列表为空时直接拒绝登录。
+        if (roles == null || roles.isEmpty()) {
+            // 抛出无权限异常。
+            throw new BizException(ErrorCode.FORBIDDEN, "账号没有可用角色");
+        }
+        // 组装 JWT 登录用户载荷。
+        LoginUser loginUser = new LoginUser(account.getId(), communityId, roles, account.getPhone());
+        // 生成访问令牌。
+        String accessToken = jwtUtil.generateToken(loginUser);
+        // 生成随机刷新令牌。
+        String refreshToken = UUID.randomUUID().toString().replace("-", "");
+        // 当前刷新令牌版本为空时按 0 处理。
+        Integer refreshVersion = account.getRefreshTokenVersion() == null ? 0 : account.getRefreshTokenVersion();
+        // 将 refresh token 写入 Redis，保存用户、社区和版本。
+        stringRedisTemplate.opsForValue().set(refreshKey(refreshToken), account.getId() + ":" + communityId + ":" + refreshVersion, Duration.ofDays(30));
+        // 手机号非空表示已绑定手机号。
+        boolean phoneBound = StringUtils.hasText(account.getPhone());
+        // 返回登录结果。
+        return new LoginVO(account.getId(), loginUser.role(), accessToken, refreshToken, roles, communityId, phoneBound);
+    }
+
+    /**
+     * 校验账号是否启用。
+     *
+     * @param account 用户账号。
+     */
+    private void ensureAccountEnabled(UserAccount account) {
+        // 禁用账号不能登录、刷新或切换角色。
+        if (account == null || Objects.equals(account.getAccountStatus(), STATUS_DISABLED)) {
+            // 抛出禁用异常。
+            throw new BizException(ErrorCode.FORBIDDEN, "账号已被禁用");
+        }
+    }
+
+    /**
+     * 生成 refresh token Redis key。
+     *
+     * @param refreshToken 刷新令牌。
+     * @return Redis key。
+     */
+    private String refreshKey(String refreshToken) {
+        // 使用固定前缀方便后续清理和观测。
+        return "auth:refresh:" + refreshToken;
     }
 
     /**

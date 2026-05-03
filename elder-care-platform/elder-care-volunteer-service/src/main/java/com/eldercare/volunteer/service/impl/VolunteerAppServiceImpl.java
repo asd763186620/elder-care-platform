@@ -90,27 +90,13 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
         VolunteerProfile profile = profileMapper.selectOne(new QueryWrapper<VolunteerProfile>().eq("community_id", user.communityId()).eq("user_id", user.userId()).eq("deleted", 0).last("limit 1"));
         // 没有档案时创建新档案。
         if (profile == null) {
-            // 构造志愿者档案实体。
-            profile = new VolunteerProfile();
-            // 写入当前社区 ID，后续所有订单匹配都靠这个字段隔离。
-            profile.communityId = user.communityId();
-            // 写入当前登录用户 ID。
-            profile.userId = user.userId();
-            // 设置未删除。
-            profile.deleted = 0;
+            // 通过实体工厂创建档案，避免业务层散落初始化细节。
+            profile = VolunteerProfile.create(user.communityId(), user.userId());
         }
-        // 更新志愿者姓名。
-        profile.volunteerName = dto.volunteerName();
-        // 更新志愿者手机号。
-        profile.volunteerPhone = dto.volunteerPhone();
-        // 更新技能标签，第一版用逗号分隔字符串。
-        profile.skillTags = dto.skillTags();
-        // 更新服务半径。
-        profile.serviceRadiusMeter = dto.serviceRadiusMeter();
-        // 第一版提交资料后直接置为正常状态。
-        profile.profileStatus = NORMAL;
+        // 通过实体行为刷新档案字段，让资料状态变更规则集中在实体内部。
+        profile.updateProfile(dto.volunteerName(), dto.volunteerPhone(), dto.skillTags(), dto.serviceRadiusMeter(), NORMAL);
         // 新档案执行插入。
-        if (profile.id == null) {
+        if (profile.getId() == null) {
             // 插入志愿者档案。
             profileMapper.insert(profile);
         } else {
@@ -123,24 +109,8 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
     public void addAvailableTime(VolunteerAvailableTimeDTO dto) {
         // 读取当前志愿者上下文。
         UserInfoDTO user = currentUser();
-        // 构造可服务时间实体。
-        VolunteerAvailableTime time = new VolunteerAvailableTime();
-        // 写入社区 ID，确保志愿者只能服务本社区订单。
-        time.communityId = user.communityId();
-        // 写入志愿者用户 ID。
-        time.volunteerUserId = user.userId();
-        // 写入可服务项目 ID，允许为空表示不限项目。
-        time.serviceItemId = dto.serviceItemId();
-        // 写入日期字段，便于按天查询。
-        time.availableDate = dto.startTime().toLocalDate();
-        // 写入可服务开始时间。
-        time.startTime = dto.startTime();
-        // 写入可服务结束时间。
-        time.endTime = dto.endTime();
-        // 设置可用状态。
-        time.availableStatus = AVAILABLE;
-        // 设置未删除。
-        time.deleted = 0;
+        // 通过实体工厂创建可服务时间，避免 Service 直接拼装表字段。
+        VolunteerAvailableTime time = VolunteerAvailableTime.create(user.communityId(), user.userId(), dto.serviceItemId(), dto.startTime(), dto.endTime(), AVAILABLE);
         // 插入可服务时间。
         availableMapper.insert(time);
     }
@@ -171,7 +141,7 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
                 // service_item_id 为空表示不限项目，否则必须匹配指定服务项目。
                 .and(w -> w.isNull("service_item_id").or().eq("service_item_id", dto.serviceItemId()));
         // 提取候选志愿者 ID 并去重。
-        List<Long> ids = availableMapper.selectList(qw).stream().map(t -> t.volunteerUserId).distinct().toList();
+        List<Long> ids = availableMapper.selectList(qw).stream().map(VolunteerAvailableTime::getVolunteerUserId).distinct().toList();
         // 再经过时间锁冲突校验，过滤掉已被占用的志愿者。
         return ids.stream().filter(id -> checkAvailable(new VolunteerCheckAvailableDTO(queryCommunityId, id, dto.serviceItemId(), dto.startTime(), dto.endTime())))
                 // 第一版返回简要信息，姓名先用占位格式。
@@ -230,26 +200,8 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
                 // 志愿者时间不可用。
                 return false;
             }
-            // 构造数据库时间锁记录。
-            VolunteerTimeLock row = new VolunteerTimeLock();
-            // 写入社区 ID。
-            row.communityId = dto.communityId();
-            // 写入志愿者用户 ID。
-            row.volunteerUserId = dto.volunteerUserId();
-            // 写入占用该时间段的订单 ID。
-            row.orderId = dto.orderId();
-            // 写入锁定日期。
-            row.lockDate = dto.startTime().toLocalDate();
-            // 写入锁定开始时间。
-            row.startTime = dto.startTime();
-            // 写入锁定结束时间。
-            row.endTime = dto.endTime();
-            // 写入固定时间槽 key，配合 MySQL 唯一索引兜底。
-            row.timeSlotKey = slotKey(dto);
-            // 设置已锁定状态。
-            row.lockStatus = LOCKED;
-            // 设置未删除。
-            row.deleted = 0;
+            // 通过实体工厂创建时间锁，锁状态和唯一时间槽的初始化集中在实体内。
+            VolunteerTimeLock row = VolunteerTimeLock.locked(dto.communityId(), dto.volunteerUserId(), dto.orderId(), dto.startTime(), dto.endTime(), slotKey(dto), LOCKED);
             // 插入时间锁，若唯一索引冲突会抛 DuplicateKeyException。
             lockMapper.insert(row);
             // 插入成功表示锁定成功。

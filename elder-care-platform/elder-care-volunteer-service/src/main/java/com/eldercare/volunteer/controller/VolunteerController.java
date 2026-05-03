@@ -8,6 +8,8 @@ import com.eldercare.common.annotation.RequireRole;
 import com.eldercare.common.constant.RoleConstants;
 import com.eldercare.common.response.Result;
 import com.eldercare.volunteer.service.VolunteerAppService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +23,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/volunteers")
+@Tag(name = "志愿者接口", description = "志愿者资料、可服务时间和可用志愿者查询")
 public class VolunteerController {
     /** 志愿者业务服务，封装资料、可用时间和可用志愿者查询逻辑。 */
     private final VolunteerAppService service;
@@ -42,6 +45,7 @@ public class VolunteerController {
      */
     @PostMapping("/profile")
     @RequireRole(RoleConstants.VOLUNTEER)
+    @Operation(summary = "完善志愿者资料", description = "当前志愿者新增或更新自己的资料")
     public Result<Void> profile(@Valid @RequestBody VolunteerProfileDTO dto) {
         service.saveProfile(dto);
         return Result.success();
@@ -55,6 +59,7 @@ public class VolunteerController {
      */
     @PostMapping("/available-times")
     @RequireRole(RoleConstants.VOLUNTEER)
+    @Operation(summary = "设置可服务时间", description = "志愿者设置某服务项目的可服务时间段")
     public Result<Void> availableTimes(@Valid @RequestBody VolunteerAvailableTimeDTO dto) {
         service.addAvailableTime(dto);
         return Result.success();
@@ -70,6 +75,7 @@ public class VolunteerController {
      */
     @GetMapping("/available")
     @RequireRole({RoleConstants.ELDER, RoleConstants.FAMILY})
+    @Operation(summary = "查询可用志愿者", description = "按服务项目和时间段查询本社区可用志愿者")
     public Result<List<VolunteerBriefVO>> available(@RequestParam Long serviceItemId,
                                                     @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
                                                     @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime) {

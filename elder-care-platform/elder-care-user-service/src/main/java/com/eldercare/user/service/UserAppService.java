@@ -1,8 +1,6 @@
 package com.eldercare.user.service;
 
-import com.eldercare.api.dto.ElderCreateDTO;
-import com.eldercare.api.dto.FamilyBindDTO;
-import com.eldercare.api.dto.MockLoginDTO;
+import com.eldercare.api.dto.*;
 import com.eldercare.api.vo.ElderProfileVO;
 import com.eldercare.api.vo.LoginVO;
 import com.eldercare.api.vo.UserInfoVO;
@@ -21,6 +19,49 @@ public interface UserAppService {
      * @return 登录结果。
      */
     LoginVO mockLogin(MockLoginDTO loginDTO);
+
+    /**
+     * 微信小程序登录。
+     *
+     * @param loginDTO 小程序登录请求。
+     * @return 登录结果。
+     */
+    LoginVO miniAppLogin(MiniAppLoginDTO loginDTO);
+
+    /**
+     * 使用刷新令牌换取新的访问令牌。
+     *
+     * @param refreshToken 刷新令牌。
+     * @return 新登录结果。
+     */
+    LoginVO refreshToken(String refreshToken);
+
+    /**
+     * 当前用户退出登录。
+     */
+    void logout();
+
+    /**
+     * 绑定当前账号手机号。
+     *
+     * @param bindDTO 绑定手机号请求。
+     */
+    void bindPhone(PhoneBindDTO bindDTO);
+
+    /**
+     * 使用微信手机号凭证绑定手机号。
+     *
+     * @param bindDTO 微信手机号绑定请求。
+     */
+    void bindWechatPhone(WechatPhoneBindDTO bindDTO);
+
+    /**
+     * 切换当前账号启用角色。
+     *
+     * @param roleDTO 角色切换请求。
+     * @return 新登录结果。
+     */
+    LoginVO switchRole(SwitchRoleDTO roleDTO);
 
     /**
      * 查询当前登录用户。

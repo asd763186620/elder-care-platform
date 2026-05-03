@@ -6,38 +6,62 @@ import com.baomidou.mybatisplus.annotation.TableName;
 
 /**
  * 订单状态日志实体，对应 order_db.order_status_log 表。
- * 说明：订单每次关键状态变更都写一条日志，便于追踪和排查问题。
  */
 @TableName("order_status_log")
 public class OrderStatusLog {
-    /** 主键 ID，使用 MySQL 自增策略。 */
+    /** 主键 ID。 */
     @TableId(type = IdType.AUTO)
-    public Long id;
-
-    /** 社区 ID，用于日志查询时继续保持数据隔离。 */
-    public Long communityId;
-
+    private Long id;
+    /** 社区 ID。 */
+    private Long communityId;
     /** 订单主键 ID。 */
-    public Long orderId;
-
-    /** 订单号，冗余保存便于日志列表展示。 */
-    public String orderNo;
-
-    /** 变更前状态，创建订单时可以为空。 */
-    public String fromStatus;
-
+    private Long orderId;
+    /** 订单号。 */
+    private String orderNo;
+    /** 变更前状态。 */
+    private String fromStatus;
     /** 变更后状态。 */
-    public String toStatus;
-
+    private String toStatus;
     /** 操作人用户 ID。 */
-    public Long operatorUserId;
+    private Long operatorUserId;
+    /** 操作人角色。 */
+    private String operatorRole;
+    /** 操作类型。 */
+    private String operateType;
+    /** 操作说明。 */
+    private String operateRemark;
 
-    /** 操作人角色，例如 ELDER、FAMILY、VOLUNTEER。 */
-    public String operatorRole;
+    /** 创建状态日志。 */
+    public static OrderStatusLog of(ServiceOrder order, String fromStatus, String toStatus, Long operatorUserId, String operateType) {
+        OrderStatusLog log = new OrderStatusLog();
+        log.communityId = order.getCommunityId();
+        log.orderId = order.getId();
+        log.orderNo = order.getOrderNo();
+        log.fromStatus = fromStatus;
+        log.toStatus = toStatus;
+        log.operatorUserId = operatorUserId;
+        log.operateType = operateType;
+        return log;
+    }
 
-    /** 操作类型，例如 CREATE、GRAB、CANCEL、COMPLETE。 */
-    public String operateType;
-
-    /** 操作说明或取消原因。 */
-    public String operateRemark;
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public Long getCommunityId() { return communityId; }
+    public void setCommunityId(Long communityId) { this.communityId = communityId; }
+    public Long getOrderId() { return orderId; }
+    public void setOrderId(Long orderId) { this.orderId = orderId; }
+    public String getOrderNo() { return orderNo; }
+    public void setOrderNo(String orderNo) { this.orderNo = orderNo; }
+    public String getFromStatus() { return fromStatus; }
+    public void setFromStatus(String fromStatus) { this.fromStatus = fromStatus; }
+    public String getToStatus() { return toStatus; }
+    public void setToStatus(String toStatus) { this.toStatus = toStatus; }
+    public Long getOperatorUserId() { return operatorUserId; }
+    public void setOperatorUserId(Long operatorUserId) { this.operatorUserId = operatorUserId; }
+    public String getOperatorRole() { return operatorRole; }
+    public void setOperatorRole(String operatorRole) { this.operatorRole = operatorRole; }
+    public String getOperateType() { return operateType; }
+    public void setOperateType(String operateType) { this.operateType = operateType; }
+    public String getOperateRemark() { return operateRemark; }
+    public void setOperateRemark(String operateRemark) { this.operateRemark = operateRemark; }
 }

@@ -31,6 +31,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
      */
     private static final List<String> WHITE_PATH_PREFIXES = List.of(
             "/auth/mock-login",
+            "/auth/wx-login",
+            "/auth/refresh-token",
             "/api/user/auth/login",
             "/swagger-ui.html",
             "/swagger-ui",

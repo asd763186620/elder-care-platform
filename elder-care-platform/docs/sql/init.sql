@@ -2,6 +2,9 @@
 -- 使用方式：先执行 docs/sql/01-init-schema.sql 建表，再执行本文件插入测试数据。
 -- 说明：本文件使用固定主键，便于 Postman 和 curl 示例直接引用。
 
+-- 强制当前 SQL 会话使用 utf8mb4，避免 mysql 客户端默认 latin1 导致中文演示数据乱码。
+SET NAMES utf8mb4;
+
 -- =========================================================
 -- 清理旧演示数据，保证脚本可以重复执行
 -- =========================================================
@@ -58,14 +61,15 @@ INSERT INTO service_item (
 USE user_db;
 
 INSERT INTO user_account (
-    id, community_id, phone, nickname, real_name, gender, account_status, deleted
+    id, community_id, phone, open_id, union_id, nickname, real_name, gender, account_status, current_role, refresh_token_version, deleted
 ) VALUES
-    (101, 1, '18800000101', '张爷爷', '张建国', 1, 1, 0),
-    (102, 1, '18800000102', '李奶奶', '李秀英', 2, 1, 0),
-    (201, 1, '18800000201', '张爷爷家属', '张小明', 1, 1, 0),
-    (301, 1, '18800000301', '志愿者小王', '王志愿', 1, 1, 0),
-    (302, 1, '18800000302', '志愿者小陈', '陈志愿', 2, 1, 0),
-    (303, 1, '18800000303', '志愿者小赵', '赵志愿', 1, 1, 0);
+    (101, 1, '18800000101', 'mock_openid_elder_101', 'mock_unionid_elder_101', '张爷爷', '张建国', 1, 1, 'ELDER', 0, 0),
+    (102, 1, '18800000102', 'mock_openid_elder_102', 'mock_unionid_elder_102', '李奶奶', '李秀英', 2, 1, 'ELDER', 0, 0),
+    (201, 1, '18800000201', 'mock_openid_family_201', 'mock_unionid_family_201', '张爷爷家属', '张小明', 1, 1, 'FAMILY', 0, 0),
+    (301, 1, '18800000301', 'mock_openid_volunteer_301', 'mock_unionid_volunteer_301', '志愿者小王', '王志愿', 1, 1, 'VOLUNTEER', 0, 0),
+    (302, 1, '18800000302', 'mock_openid_volunteer_302', 'mock_unionid_volunteer_302', '志愿者小陈', '陈志愿', 2, 1, 'VOLUNTEER', 0, 0),
+    (303, 1, '18800000303', 'mock_openid_volunteer_303', 'mock_unionid_volunteer_303', '志愿者小赵', '赵志愿', 1, 1, 'VOLUNTEER', 0, 0),
+    (901, 1, '18800000901', 'mock_openid_admin_901', 'mock_unionid_admin_901', '社区管理员', '社区管理员', 1, 1, 'ADMIN', 0, 0);
 
 INSERT INTO user_role (
     community_id, user_id, role_code, role_status, deleted
@@ -75,7 +79,8 @@ INSERT INTO user_role (
     (1, 201, 'FAMILY', 1, 0),
     (1, 301, 'VOLUNTEER', 1, 0),
     (1, 302, 'VOLUNTEER', 1, 0),
-    (1, 303, 'VOLUNTEER', 1, 0);
+    (1, 303, 'VOLUNTEER', 1, 0),
+    (1, 901, 'ADMIN', 1, 0);
 
 INSERT INTO elder_profile (
     community_id, user_id, elder_name, elder_phone, age, address,

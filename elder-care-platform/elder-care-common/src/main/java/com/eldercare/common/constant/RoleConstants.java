@@ -20,6 +20,9 @@ public final class RoleConstants {
      */
     public static final String VOLUNTEER = "VOLUNTEER";
 
+    /** 后台管理员角色。 */
+    public static final String ADMIN = "ADMIN";
+
     /**
      * 私有构造方法，防止常量类被实例化。
      */

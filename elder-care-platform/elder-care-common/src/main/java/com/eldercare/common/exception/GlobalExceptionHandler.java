@@ -2,6 +2,8 @@ package com.eldercare.common.exception;
 
 import com.eldercare.common.response.Result;
 import jakarta.validation.ConstraintViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -12,6 +14,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    /** 日志对象，用于记录后端异常堆栈。 */
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     /**
      * 处理手动抛出的业务异常。
@@ -21,6 +25,8 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(BizException.class)
     public Result<Void> handleBizException(BizException exception) {
+        // 业务异常通常是可预期错误，记录 warn 便于排查第三方接口返回。
+        log.warn("业务异常：code={}, message={}", exception.getErrorCode().getCode(), exception.getMessage());
         // 使用异常里的错误码和具体消息返回给调用方。
         return Result.fail(exception.getErrorCode().getCode(), exception.getMessage());
     }
@@ -79,7 +85,9 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public Result<Void> handleException(Exception exception) {
-        // 第一版不把堆栈细节暴露给前端，日志后续接入后再记录完整异常。
+        // 未预期异常必须打印完整堆栈，方便本地和服务器排查 500。
+        log.error("系统异常", exception);
+        // 不把堆栈细节暴露给前端。
         return Result.fail(ErrorCode.SYSTEM_ERROR);
     }
 }

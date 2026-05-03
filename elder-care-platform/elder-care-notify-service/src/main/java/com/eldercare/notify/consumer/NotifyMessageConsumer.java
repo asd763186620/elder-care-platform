@@ -39,30 +39,8 @@ public class NotifyMessageConsumer {
             // 直接返回，让 RabbitMQ ack 当前消息。
             return;
         }
-        // 构造通知记录。
-        NotifyRecord record = new NotifyRecord();
-        // 写入社区 ID。
-        record.communityId = event.communityId();
-        // 写入业务类型，这里直接使用订单事件类型。
-        record.businessType = event.eventType();
-        // 写入业务 ID，也就是订单 ID。
-        record.businessId = event.orderId();
-        // 第一版先通知老人用户。
-        record.receiverUserId = event.elderUserId();
-        // 第一版模拟站内通知。
-        record.notifyChannel = "IN_APP";
-        // 写入通知标题。
-        record.notifyTitle = "养老服务预约通知";
-        // 写入通知内容。
-        record.notifyContent = event.content();
-        // 第一版模拟发送成功，直接置为 2。
-        record.notifyStatus = 2;
-        // 初始重试次数为 0。
-        record.retryCount = 0;
-        // 记录 MQ 消息 ID，后续消费幂等依赖该字段唯一索引。
-        record.mqMessageId = event.messageId();
-        // 设置未删除。
-        record.deleted = 0;
+        // 通过实体工厂构造通知记录，让消费端只负责编排消费流程。
+        NotifyRecord record = NotifyRecord.orderSuccess(event.communityId(), event.eventType(), event.orderId(), event.elderUserId(), event.content(), event.messageId());
         // 插入通知记录。
         notifyRecordMapper.insert(record);
         // 模拟发送通知，后续可替换为短信或小程序订阅消息。

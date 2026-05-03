@@ -51,4 +51,11 @@ public interface OrderAppService {
      * @param orderId 订单 ID。
      */
     void complete(Long orderId);
+
+    /**
+     * 自动关闭超时订单。
+     *
+     * @return 本次关闭数量。
+     */
+    int autoCloseTimeoutOrders();
 }
