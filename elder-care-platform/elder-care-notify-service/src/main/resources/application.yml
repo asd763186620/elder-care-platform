@@ -1,0 +1,46 @@
+# 通知服务本地基础配置。
+server:
+  # 通知服务端口。
+  port: 8105
+
+spring:
+  datasource:
+    # MySQL 连接地址。
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:notify_db}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    # MySQL 用户名。
+    username: ${MYSQL_USERNAME:root}
+    # MySQL 密码。
+    password: ${MYSQL_PASSWORD:root123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      # Redis 主机。
+      host: ${REDIS_HOST:127.0.0.1}
+      # Redis 端口。
+      port: ${REDIS_PORT:6379}
+  rabbitmq:
+    # RabbitMQ 主机。
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    # RabbitMQ AMQP 端口。
+    port: ${RABBITMQ_PORT:5672}
+    # RabbitMQ 用户名。
+    username: ${RABBITMQ_USERNAME:elder}
+    # RabbitMQ 密码。
+    password: ${RABBITMQ_PASSWORD:elder123456}
+
+mybatis-plus:
+  configuration:
+    # 控制台输出 SQL，方便第一阶段学习和调试。
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # 暴露健康检查端点。
+        include: health,info
+
+elder-care:
+  mq:
+    # 通知服务监听的 RabbitMQ 队列。
+    notify-queue: elder.care.order.notify.queue

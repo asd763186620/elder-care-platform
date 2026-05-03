@@ -1,0 +1,49 @@
+package com.eldercare.user.controller;
+
+import com.eldercare.api.dto.ElderCreateDTO;
+import com.eldercare.api.vo.ElderProfileVO;
+import com.eldercare.common.annotation.RequireRole;
+import com.eldercare.common.constant.RoleConstants;
+import com.eldercare.common.response.Result;
+import com.eldercare.user.service.UserAppService;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * 老人资料控制器。
+ */
+@RestController
+@RequestMapping("/elders")
+@RequireRole(RoleConstants.ELDER)
+public class ElderController {
+
+    /**
+     * 用户业务服务。
+     */
+    private final UserAppService userAppService;
+
+    /**
+     * 构造控制器。
+     *
+     * @param userAppService 用户业务服务。
+     */
+    public ElderController(UserAppService userAppService) {
+        // 保存用户业务服务。
+        this.userAppService = userAppService;
+    }
+
+    /**
+     * 新增老人资料。
+     *
+     * @param createDTO 新增老人请求。
+     * @return 老人资料。
+     */
+    @PostMapping
+    public Result<ElderProfileVO> create(@Valid @RequestBody ElderCreateDTO createDTO) {
+        // 调用业务服务创建老人资料。
+        return Result.success(userAppService.createElder(createDTO));
+    }
+}

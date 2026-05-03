@@ -1,0 +1,20 @@
+# bootstrap.yml 会优先于 application.yml 加载，适合放服务名和 Nacos 地址。
+spring:
+  application:
+    # 当前服务注册到 Nacos 的名称。
+    name: elder-care-order-service
+  cloud:
+    nacos:
+      # Nacos 服务地址。
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      discovery:
+        # 注册中心地址。
+        server-addr: ${spring.cloud.nacos.server-addr}
+      config:
+        # 配置中心地址。
+        server-addr: ${spring.cloud.nacos.server-addr}
+        # Nacos 配置后缀。
+        file-extension: yaml
+        import-check:
+          # 第一版允许 Nacos 中暂时没有配置文件。
+          enabled: false

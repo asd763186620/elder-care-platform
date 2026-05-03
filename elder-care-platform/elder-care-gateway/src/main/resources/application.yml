@@ -1,0 +1,100 @@
+# 网关服务本地基础配置。
+server:
+  # 网关统一入口端口。
+  port: 8080
+
+spring:
+  cloud:
+    gateway:
+      routes:
+        # 用户服务路由。
+        - id: elder-care-user-service
+          uri: lb://elder-care-user-service
+          predicates:
+            - Path=/api/user/**,/auth/**,/users/**,/elders/**,/family/**,/internal/users/**,/internal/family/**
+        # 社区服务路由。
+        - id: elder-care-community-service
+          uri: lb://elder-care-community-service
+          predicates:
+            - Path=/api/community/**,/communities/**,/service-items/**,/internal/service-items/**
+        # 志愿者服务路由。
+        - id: elder-care-volunteer-service
+          uri: lb://elder-care-volunteer-service
+          predicates:
+            - Path=/api/volunteer/**,/volunteers/**,/internal/volunteers/**
+        # 订单服务路由。
+        - id: elder-care-order-service
+          uri: lb://elder-care-order-service
+          predicates:
+            - Path=/api/order/**,/orders/**
+        # 通知服务路由。
+        - id: elder-care-notify-service
+          uri: lb://elder-care-notify-service
+          predicates:
+            - Path=/api/notify/**
+        # 用户服务 OpenAPI 文档路由。
+        - id: elder-care-user-service-docs
+          uri: lb://elder-care-user-service
+          predicates:
+            - Path=/v3/api-docs/user
+          filters:
+            - RewritePath=/v3/api-docs/user,/v3/api-docs
+        # 社区服务 OpenAPI 文档路由。
+        - id: elder-care-community-service-docs
+          uri: lb://elder-care-community-service
+          predicates:
+            - Path=/v3/api-docs/community
+          filters:
+            - RewritePath=/v3/api-docs/community,/v3/api-docs
+        # 志愿者服务 OpenAPI 文档路由。
+        - id: elder-care-volunteer-service-docs
+          uri: lb://elder-care-volunteer-service
+          predicates:
+            - Path=/v3/api-docs/volunteer
+          filters:
+            - RewritePath=/v3/api-docs/volunteer,/v3/api-docs
+        # 订单服务 OpenAPI 文档路由。
+        - id: elder-care-order-service-docs
+          uri: lb://elder-care-order-service
+          predicates:
+            - Path=/v3/api-docs/order
+          filters:
+            - RewritePath=/v3/api-docs/order,/v3/api-docs
+        # 通知服务 OpenAPI 文档路由。
+        - id: elder-care-notify-service-docs
+          uri: lb://elder-care-notify-service
+          predicates:
+            - Path=/v3/api-docs/notify
+          filters:
+            - RewritePath=/v3/api-docs/notify,/v3/api-docs
+
+springdoc:
+  swagger-ui:
+    # 网关 Swagger UI 地址。
+    path: /swagger-ui.html
+    # 聚合显示所有业务服务的 OpenAPI 文档。
+    urls:
+      - name: 用户服务
+        url: /v3/api-docs/user
+      - name: 社区服务
+        url: /v3/api-docs/community
+      - name: 志愿者服务
+        url: /v3/api-docs/volunteer
+      - name: 订单服务
+        url: /v3/api-docs/order
+      - name: 通知服务
+        url: /v3/api-docs/notify
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # 暴露健康检查端点，方便本地验证服务状态。
+        include: health,info
+
+elder-care:
+  jwt:
+    # 演示用 JWT 密钥，生产环境必须放到 Nacos 或环境变量中替换。
+    secret: ${JWT_SECRET:elder-care-platform-jwt-secret-demo-please-change}
+    # Token 默认有效期为 7 天。
+    expire-seconds: ${JWT_EXPIRE_SECONDS:604800}

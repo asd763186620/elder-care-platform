@@ -1,0 +1,75 @@
+# Docker Compose 用于启动本地开发依赖组件。
+services:
+  # MySQL 8 用于存储业务数据。
+  mysql:
+    image: mysql:8.0
+    container_name: elder-care-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123456
+      MYSQL_DATABASE: elder_care
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - elder-care-mysql-data:/var/lib/mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+
+  # Redis 用于缓存、防重复提交标记和 Redisson 分布式锁。
+  redis:
+    image: redis:7.2
+    container_name: elder-care-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - elder-care-redis-data:/data
+
+  # RabbitMQ 用于异步通知消息。
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: elder-care-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: elder
+      RABBITMQ_DEFAULT_PASS: elder123456
+      TZ: Asia/Shanghai
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - elder-care-rabbitmq-data:/var/lib/rabbitmq
+
+  # Nacos 用作注册中心和配置中心。
+  nacos:
+    image: nacos/nacos-server:v2.4.3
+    container_name: elder-care-nacos
+    restart: unless-stopped
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: "false"
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+      JVM_XMN: 128m
+      TZ: Asia/Shanghai
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+      - "9849:9849"
+    volumes:
+      - elder-care-nacos-data:/home/nacos/data
+      - elder-care-nacos-logs:/home/nacos/logs
+
+volumes:
+  # MySQL 数据卷。
+  elder-care-mysql-data:
+  # Redis 数据卷。
+  elder-care-redis-data:
+  # RabbitMQ 数据卷。
+  elder-care-rabbitmq-data:
+  # Nacos 数据卷。
+  elder-care-nacos-data:
+  # Nacos 日志卷。
+  elder-care-nacos-logs:

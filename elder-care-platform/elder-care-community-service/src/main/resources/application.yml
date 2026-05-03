@@ -1,0 +1,39 @@
+# 社区服务本地基础配置。
+server:
+  # 社区服务端口。
+  port: 8102
+
+spring:
+  datasource:
+    # MySQL 连接地址。
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:community_db}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    # MySQL 用户名。
+    username: ${MYSQL_USERNAME:root}
+    # MySQL 密码。
+    password: ${MYSQL_PASSWORD:root123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      # Redis 主机。
+      host: ${REDIS_HOST:127.0.0.1}
+      # Redis 端口。
+      port: ${REDIS_PORT:6379}
+
+mybatis-plus:
+  configuration:
+    # 控制台输出 SQL，方便第一阶段学习和调试。
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # 暴露健康检查端点。
+        include: health,info
+
+elder-care:
+  jwt:
+    # 演示用 JWT 密钥。
+    secret: ${JWT_SECRET:elder-care-platform-jwt-secret-demo-please-change}
+    # Token 默认有效期为 7 天。
+    expire-seconds: ${JWT_EXPIRE_SECONDS:604800}
