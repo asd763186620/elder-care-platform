@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 
+import java.time.LocalDateTime;
+
 /**
  * 通知记录实体，对应 notify_db.notify_record 表。
  * 说明：MQ 消费成功后写入该表，既能追踪通知结果，也能通过 mqMessageId 做消费幂等。
@@ -39,6 +41,9 @@ public class NotifyRecord {
     /** 通知正文内容。 */
     private String notifyContent;
 
+    /** 已读状态：0未读，1已读。 */
+    private Integer readStatus;
+
     /** 通知状态：1 成功，0 失败。 */
     private Integer notifyStatus;
 
@@ -50,6 +55,9 @@ public class NotifyRecord {
 
     /** MQ 消息唯一 ID，用于防止重复消费导致重复通知。 */
     private String mqMessageId;
+
+    /** 创建时间。 */
+    private LocalDateTime createdAt;
 
     /** 逻辑删除标识：0 未删除，1 已删除。 */
     @TableLogic
@@ -85,6 +93,8 @@ public class NotifyRecord {
         record.notifyContent = notifyContent;
         // 第一版模拟发送成功，直接置为 2。
         record.notifyStatus = 2;
+        // 新消息默认未读。
+        record.readStatus = 0;
         // 初始重试次数为 0。
         record.retryCount = 0;
         // 记录 MQ 消息 ID，后续消费幂等依赖该字段唯一索引。
@@ -195,6 +205,16 @@ public class NotifyRecord {
         this.notifyStatus = notifyStatus;
     }
 
+    public Integer getReadStatus() {
+        // 返回已读状态。
+        return readStatus;
+    }
+
+    public void setReadStatus(Integer readStatus) {
+        // MyBatis-Plus 反射设置已读状态时使用。
+        this.readStatus = readStatus;
+    }
+
     public Integer getRetryCount() {
         // 返回重试次数。
         return retryCount;
@@ -223,6 +243,16 @@ public class NotifyRecord {
     public void setMqMessageId(String mqMessageId) {
         // MyBatis-Plus 反射设置 MQ 消息唯一 ID 时使用。
         this.mqMessageId = mqMessageId;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        // 返回创建时间。
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        // MyBatis-Plus 反射设置创建时间时使用。
+        this.createdAt = createdAt;
     }
 
     public Integer getDeleted() {

@@ -3,15 +3,21 @@ package com.eldercare.volunteer.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.eldercare.api.dto.*;
+import com.eldercare.api.vo.CursorPageVO;
+import com.eldercare.api.vo.VolunteerCheckinRecordVO;
+import com.eldercare.api.vo.VolunteerCheckinTodayVO;
 import com.eldercare.api.vo.VolunteerBriefVO;
+import com.eldercare.api.vo.VolunteerWorkbenchVO;
 import com.eldercare.common.context.UserContext;
 import com.eldercare.common.context.UserInfoDTO;
 import com.eldercare.common.exception.BizException;
 import com.eldercare.common.exception.ErrorCode;
 import com.eldercare.volunteer.entity.VolunteerAvailableTime;
+import com.eldercare.volunteer.entity.VolunteerCheckinRecord;
 import com.eldercare.volunteer.entity.VolunteerProfile;
 import com.eldercare.volunteer.entity.VolunteerTimeLock;
 import com.eldercare.volunteer.mapper.VolunteerAvailableTimeMapper;
+import com.eldercare.volunteer.mapper.VolunteerCheckinRecordMapper;
 import com.eldercare.volunteer.mapper.VolunteerProfileMapper;
 import com.eldercare.volunteer.mapper.VolunteerTimeLockMapper;
 import com.eldercare.volunteer.service.VolunteerAppService;
@@ -21,9 +27,12 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 /**
  * 志愿者业务实现。
@@ -66,17 +75,24 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
     private final VolunteerTimeLockMapper lockMapper;
 
     /**
+     * 志愿者签到记录 Mapper。
+     */
+    private final VolunteerCheckinRecordMapper checkinMapper;
+
+    /**
      * Redisson 客户端，用于分布式锁。
      */
     private final RedissonClient redissonClient;
 
-    public VolunteerAppServiceImpl(VolunteerProfileMapper profileMapper, VolunteerAvailableTimeMapper availableMapper, VolunteerTimeLockMapper lockMapper, RedissonClient redissonClient) {
+    public VolunteerAppServiceImpl(VolunteerProfileMapper profileMapper, VolunteerAvailableTimeMapper availableMapper, VolunteerTimeLockMapper lockMapper, VolunteerCheckinRecordMapper checkinMapper, RedissonClient redissonClient) {
         // 保存志愿者档案 Mapper。
         this.profileMapper = profileMapper;
         // 保存可服务时间 Mapper。
         this.availableMapper = availableMapper;
         // 保存时间锁 Mapper。
         this.lockMapper = lockMapper;
+        // 保存签到 Mapper。
+        this.checkinMapper = checkinMapper;
         // 保存 Redisson 客户端。
         this.redissonClient = redissonClient;
     }
@@ -239,6 +255,83 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
                 .eq("lock_status", LOCKED)) > 0;
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void checkIn(VolunteerCheckinDTO dto) {
+        // 读取当前志愿者上下文。
+        UserInfoDTO user = currentUser();
+        try {
+            // 插入今日签到记录，唯一索引保证同一天只能签到一次。
+            checkinMapper.insert(VolunteerCheckinRecord.today(user.communityId(), user.userId(), dto.longitude(), dto.latitude(), dto.address()));
+        } catch (DuplicateKeyException exception) {
+            // 唯一索引冲突说明今天已经签到。
+            throw new BizException(ErrorCode.DATA_EXISTS, "今天已经签到");
+        }
+    }
+
+    @Override
+    public VolunteerCheckinTodayVO todayCheckin() {
+        // 读取当前志愿者上下文。
+        UserInfoDTO user = currentUser();
+        // 查询今天签到记录。
+        VolunteerCheckinRecord record = selectTodayCheckin(user);
+        // 未签到时返回 checkedIn=false。
+        if (record == null) {
+            // 返回未签到状态。
+            return new VolunteerCheckinTodayVO(false, null, null);
+        }
+        // 返回签到时间和地址。
+        return new VolunteerCheckinTodayVO(true, record.getCheckinTime(), record.getAddress());
+    }
+
+    @Override
+    public CursorPageVO<VolunteerCheckinRecordVO> checkinPage(Long lastId, Integer size, LocalDate startDate, LocalDate endDate) {
+        // 读取当前志愿者上下文。
+        UserInfoDTO user = currentUser();
+        // 构造查询，限定当前志愿者自己。
+        QueryWrapper<VolunteerCheckinRecord> qw = new QueryWrapper<VolunteerCheckinRecord>()
+                .eq("community_id", user.communityId())
+                .eq("volunteer_user_id", user.userId());
+        // 开始日期可选。
+        if (startDate != null) {
+            // 限定签到日期大于等于开始日期。
+            qw.ge("checkin_date", startDate);
+        }
+        // 结束日期可选。
+        if (endDate != null) {
+            // 限定签到日期小于等于结束日期。
+            qw.le("checkin_date", endDate);
+        }
+        // 应用游标分页。
+        applyCursor(qw, lastId, normalizeSize(size));
+        // 查询并转换记录。
+        List<VolunteerCheckinRecordVO> records = checkinMapper.selectList(qw).stream()
+                .map(r -> new VolunteerCheckinRecordVO(r.getId(), r.getCheckinDate(), r.getCheckinTime(), r.getLongitude(), r.getLatitude(), r.getAddress(), r.getStatus()))
+                .toList();
+        // 返回分页对象。
+        return page(records, normalizeSize(size), VolunteerCheckinRecordVO::id);
+    }
+
+    @Override
+    public VolunteerWorkbenchVO workbench() {
+        // 读取当前志愿者上下文。
+        UserInfoDTO user = currentUser();
+        // 查询志愿者资料。
+        VolunteerProfile profile = profileMapper.selectOne(new QueryWrapper<VolunteerProfile>()
+                .eq("community_id", user.communityId())
+                .eq("user_id", user.userId())
+                .eq("deleted", 0)
+                .last("limit 1"));
+        // 本地服务先返回签到、评分占位和接单状态，订单统计后续通过 Feign 精细化。
+        boolean checkedIn = selectTodayCheckin(user) != null;
+        // 评分第一版用 0 占位，评价聚合由 order-service 提供。
+        Integer score = 0;
+        // 有正常资料且已签到时表示可以接单。
+        String acceptStatus = profile != null && checkedIn ? "AVAILABLE" : "UNAVAILABLE";
+        // 返回工作台数据。
+        return new VolunteerWorkbenchVO(checkedIn, 0, 0, 0, 0, score, acceptStatus);
+    }
+
     private UserInfoDTO currentUser() {
         // 从当前 HTTP 请求头读取用户上下文。
         UserContext.loadFromCurrentRequest();
@@ -253,5 +346,52 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
         DateTimeFormatter f = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
         // 拼接开始结束时间形成稳定 key。
         return dto.startTime().format(f) + "_" + dto.endTime().format(f);
+    }
+
+    /**
+     * 查询今日签到记录。
+     */
+    private VolunteerCheckinRecord selectTodayCheckin(UserInfoDTO user) {
+        // 按志愿者和当天日期查询。
+        return checkinMapper.selectOne(new QueryWrapper<VolunteerCheckinRecord>()
+                .eq("community_id", user.communityId())
+                .eq("volunteer_user_id", user.userId())
+                .eq("checkin_date", LocalDate.now())
+                .last("limit 1"));
+    }
+
+    /**
+     * 应用游标分页。
+     */
+    private void applyCursor(QueryWrapper<?> qw, Long lastId, int size) {
+        // 传入 lastId 时查更早记录。
+        if (lastId != null) {
+            // 添加 id < lastId 条件。
+            qw.lt("id", lastId);
+        }
+        // 按 ID 倒序并多查一条判断 hasMore。
+        qw.orderByDesc("id").last("limit " + (size + 1));
+    }
+
+    /**
+     * 规整分页大小。
+     */
+    private int normalizeSize(Integer size) {
+        // 默认 10，最大 50。
+        return Math.max(1, Math.min(size == null ? 10 : size, 50));
+    }
+
+    /**
+     * 构造分页响应。
+     */
+    private <T> CursorPageVO<T> page(List<T> rows, int size, Function<T, Long> idGetter) {
+        // 多查一条时，大于 size 表示还有更多。
+        boolean hasMore = rows.size() > size;
+        // 截取实际返回记录。
+        List<T> records = hasMore ? new ArrayList<>(rows.subList(0, size)) : rows;
+        // 下一页游标取最后一条记录 ID。
+        Long nextLastId = records.isEmpty() ? null : idGetter.apply(records.get(records.size() - 1));
+        // 返回游标分页结果。
+        return new CursorPageVO<>(hasMore, nextLastId, records);
     }
 }

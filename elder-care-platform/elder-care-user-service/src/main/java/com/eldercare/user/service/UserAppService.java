@@ -1,6 +1,7 @@
 package com.eldercare.user.service;
 
 import com.eldercare.api.dto.*;
+import com.eldercare.api.vo.AuthCurrentVO;
 import com.eldercare.api.vo.ElderProfileVO;
 import com.eldercare.api.vo.LoginVO;
 import com.eldercare.api.vo.UserInfoVO;
@@ -42,6 +43,13 @@ public interface UserAppService {
     void logout();
 
     /**
+     * 当前用户退出登录，并删除指定刷新令牌。
+     *
+     * @param refreshToken 当前客户端保存的 refreshToken。
+     */
+    void logout(String refreshToken);
+
+    /**
      * 绑定当前账号手机号。
      *
      * @param bindDTO 绑定手机号请求。
@@ -62,6 +70,13 @@ public interface UserAppService {
      * @return 新登录结果。
      */
     LoginVO switchRole(SwitchRoleDTO roleDTO);
+
+    /**
+     * 查询认证维度的当前登录用户信息。
+     *
+     * @return 当前登录用户、角色和档案摘要。
+     */
+    AuthCurrentVO currentAuth();
 
     /**
      * 查询当前登录用户。

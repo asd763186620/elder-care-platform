@@ -54,7 +54,7 @@ public class ServiceOrder {
     /** 最终接单的志愿者 ID，指定派单或抢单成功后写入。 */
     private Long assignedVolunteerUserId;
 
-    /** 订单状态，例如 WAIT_GRAB、ACCEPTED、CANCELLED、COMPLETED。 */
+    /** 订单状态，例如 WAIT_GRAB、WAIT_SERVICE、IN_SERVICE、WAIT_CONFIRM、COMPLETED。 */
     private String orderStatus;
 
     /** 订单来源，例如 MINI_APP。 */
@@ -71,6 +71,12 @@ public class ServiceOrder {
 
     /** 接单时间，指定派单创建成功或公共池抢单成功时写入。 */
     private LocalDateTime assignedAt;
+
+    /** 开始服务时间，志愿者点击开始服务时写入。 */
+    private LocalDateTime serviceStartedAt;
+
+    /** 提交完成时间，志愿者提交完成等待确认时写入。 */
+    private LocalDateTime submittedAt;
 
     /** 完成时间，订单完成时写入。 */
     private LocalDateTime completedAt;
@@ -175,6 +181,10 @@ public class ServiceOrder {
     public void setGrabDeadline(LocalDateTime grabDeadline) { this.grabDeadline = grabDeadline; }
     public LocalDateTime getAssignedAt() { return assignedAt; }
     public void setAssignedAt(LocalDateTime assignedAt) { this.assignedAt = assignedAt; }
+    public LocalDateTime getServiceStartedAt() { return serviceStartedAt; }
+    public void setServiceStartedAt(LocalDateTime serviceStartedAt) { this.serviceStartedAt = serviceStartedAt; }
+    public LocalDateTime getSubmittedAt() { return submittedAt; }
+    public void setSubmittedAt(LocalDateTime submittedAt) { this.submittedAt = submittedAt; }
     public LocalDateTime getCompletedAt() { return completedAt; }
     public void setCompletedAt(LocalDateTime completedAt) { this.completedAt = completedAt; }
     public LocalDateTime getCancelledAt() { return cancelledAt; }

@@ -1,7 +1,11 @@
 package com.eldercare.volunteer.service;
 
 import com.eldercare.api.dto.*;
+import com.eldercare.api.vo.CursorPageVO;
+import com.eldercare.api.vo.VolunteerCheckinRecordVO;
+import com.eldercare.api.vo.VolunteerCheckinTodayVO;
 import com.eldercare.api.vo.VolunteerBriefVO;
+import com.eldercare.api.vo.VolunteerWorkbenchVO;
 
 import java.util.List;
 
@@ -54,4 +58,24 @@ public interface VolunteerAppService {
      * @return true 表示释放成功。
      */
     boolean releaseTime(VolunteerLockTimeDTO dto);
+
+    /**
+     * 当前志愿者今日签到。
+     */
+    void checkIn(VolunteerCheckinDTO dto);
+
+    /**
+     * 查询当前志愿者今日签到状态。
+     */
+    VolunteerCheckinTodayVO todayCheckin();
+
+    /**
+     * 查询当前志愿者签到记录分页。
+     */
+    CursorPageVO<VolunteerCheckinRecordVO> checkinPage(Long lastId, Integer size, java.time.LocalDate startDate, java.time.LocalDate endDate);
+
+    /**
+     * 查询当前志愿者工作台。
+     */
+    VolunteerWorkbenchVO workbench();
 }

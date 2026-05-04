@@ -31,6 +31,16 @@ public final class MqConstants {
     public static final String ORDER_CANCELLED_ROUTING_KEY = "order.cancelled";
 
     /**
+     * 订单开始服务路由键。
+     */
+    public static final String ORDER_STARTED_ROUTING_KEY = "order.started";
+
+    /**
+     * 订单提交完成路由键。
+     */
+    public static final String ORDER_SUBMITTED_ROUTING_KEY = "order.submitted";
+
+    /**
      * 订单完成路由键。
      */
     public static final String ORDER_COMPLETED_ROUTING_KEY = "order.completed";

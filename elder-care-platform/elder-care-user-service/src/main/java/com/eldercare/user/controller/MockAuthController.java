@@ -1,12 +1,14 @@
 package com.eldercare.user.controller;
 
 import com.eldercare.api.dto.*;
+import com.eldercare.api.vo.AuthCurrentVO;
 import com.eldercare.api.vo.LoginVO;
 import com.eldercare.common.response.Result;
 import com.eldercare.user.service.UserAppService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -81,11 +83,23 @@ public class MockAuthController {
      */
     @PostMapping("/logout")
     @Operation(summary = "退出登录", description = "递增刷新令牌版本，使历史 refreshToken 失效")
-    public Result<Void> logout() {
-        // 退出时递增账号刷新令牌版本并清理当前用户 refresh token。
-        userAppService.logout();
+    public Result<Void> logout(@RequestBody(required = false) RefreshTokenDTO refreshTokenDTO) {
+        // 退出时优先删除当前客户端携带的 refreshToken。
+        userAppService.logout(refreshTokenDTO == null ? null : refreshTokenDTO.refreshToken());
         // 返回成功。
         return Result.success();
+    }
+
+    /**
+     * 查询当前登录用户信息。
+     *
+     * @return 当前登录用户、角色和档案摘要。
+     */
+    @GetMapping("/current")
+    @Operation(summary = "当前登录用户", description = "返回用户基础信息、当前角色、角色列表和档案摘要")
+    public Result<AuthCurrentVO> current() {
+        // 调用用户服务读取当前登录态对应的账号信息。
+        return Result.success(userAppService.currentAuth());
     }
 
     /**

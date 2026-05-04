@@ -18,6 +18,12 @@ spring:
           predicates:
             - Path=/api/community/**,/communities/**,/service-items/**,/internal/service-items/**,/admin/community/**
         # 志愿者服务路由。
+        # 志愿者评价和评分属于订单评价数据，路由到 order-service。
+        - id: elder-care-order-volunteer-review-service
+          uri: lb://elder-care-order-service
+          predicates:
+            - Path=/volunteers/*/reviews,/volunteers/*/score
+        # 志愿者服务路由。
         - id: elder-care-volunteer-service
           uri: lb://elder-care-volunteer-service
           predicates:
@@ -31,7 +37,7 @@ spring:
         - id: elder-care-notify-service
           uri: lb://elder-care-notify-service
           predicates:
-            - Path=/api/notify/**,/admin/notify-records/**
+            - Path=/api/notify/**,/notices/**,/admin/notify-records/**
         # 用户服务 OpenAPI 文档路由。
         - id: elder-care-user-service-docs
           uri: lb://elder-care-user-service
@@ -96,5 +102,5 @@ elder-care:
   jwt:
     # 演示用 JWT 密钥，生产环境必须放到 Nacos 或环境变量中替换。
     secret: ${JWT_SECRET:elder-care-platform-jwt-secret-demo-please-change}
-    # Token 默认有效期为 7 天。
-    expire-seconds: ${JWT_EXPIRE_SECONDS:604800}
+    # Token 默认有效期为 2 小时。
+    expire-seconds: ${JWT_EXPIRE_SECONDS:7200}

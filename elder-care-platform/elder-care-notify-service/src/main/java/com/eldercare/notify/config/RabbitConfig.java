@@ -76,4 +76,22 @@ public class RabbitConfig {
         // 监听 order.completed。
         return BindingBuilder.bind(orderNotifyQueue).to(orderEventExchange).with(MqConstants.ORDER_COMPLETED_ROUTING_KEY);
     }
+
+    /**
+     * 绑定开始服务事件。
+     */
+    @Bean
+    public Binding bindStarted(Queue orderNotifyQueue, DirectExchange orderEventExchange) {
+        // 监听 order.started。
+        return BindingBuilder.bind(orderNotifyQueue).to(orderEventExchange).with(MqConstants.ORDER_STARTED_ROUTING_KEY);
+    }
+
+    /**
+     * 绑定提交完成事件。
+     */
+    @Bean
+    public Binding bindSubmitted(Queue orderNotifyQueue, DirectExchange orderEventExchange) {
+        // 监听 order.submitted。
+        return BindingBuilder.bind(orderNotifyQueue).to(orderEventExchange).with(MqConstants.ORDER_SUBMITTED_ROUTING_KEY);
+    }
 }

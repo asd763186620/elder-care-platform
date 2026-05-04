@@ -45,6 +45,7 @@ docker compose up -d
 docker cp docs/sql/01-init-schema.sql elder-care-mysql:/tmp/01-init-schema.sql
 docker cp docs/sql/02-migrate-user-wechat-login.sql elder-care-mysql:/tmp/02-migrate-user-wechat-login.sql
 docker cp docs/sql/03-fix-demo-data-charset.sql elder-care-mysql:/tmp/03-fix-demo-data-charset.sql
+docker cp docs/sql/04-fix-schema-comments.sql elder-care-mysql:/tmp/04-fix-schema-comments.sql
 docker cp docs/sql/init.sql elder-care-mysql:/tmp/init.sql
 docker exec elder-care-mysql mysql -uroot -proot123456 --default-character-set=utf8mb4 -e "source /tmp/01-init-schema.sql"
 # 如果你是旧库升级，执行下面这条；全新库已由 01-init-schema.sql 包含这些字段，可以跳过。
@@ -52,6 +53,8 @@ docker exec elder-care-mysql mysql -uroot -proot123456 --default-character-set=u
 docker exec elder-care-mysql mysql -uroot -proot123456 --default-character-set=utf8mb4 -e "source /tmp/init.sql"
 # 如果旧版 init.sql 已经导入出中文乱码，执行下面这条修复固定演示数据。
 docker exec elder-care-mysql mysql -uroot -proot123456 --default-character-set=utf8mb4 -e "source /tmp/03-fix-demo-data-charset.sql"
+# 如果旧版建表脚本导致表注释或字段注释乱码，执行下面这条修复 schema 注释。
+docker exec elder-care-mysql mysql -uroot -proot123456 --default-character-set=utf8mb4 -e "source /tmp/04-fix-schema-comments.sql"
 ```
 
 3. 编译项目：
@@ -297,3 +300,121 @@ Swagger：
 - MyBatis-Plus Mapper 扫描已在各服务启动类配置。
 - Redis / Redisson 在允许本机网络访问后可连接。
 - RabbitMQ exchange / queue 由 order-service 和 notify-service 的配置类自动声明。
+
+## 第二版小程序端增强
+
+本次第二版在第一版主链路上继续增强小程序端闭环，不新增后台管理页面。
+
+新增能力：
+
+- 微信小程序登录增强：`POST /auth/wx-login` 支持 `code`、`communityId`、`loginRole`，保留 `POST /auth/mock-login`。
+- Token 机制：accessToken 默认 2 小时，refreshToken 默认 30 天并存 Redis，退出登录会删除当前 refreshToken 并递增版本。
+- 当前用户：`GET /auth/current` 返回当前角色、角色列表、手机号、老人档案摘要和志愿者摘要。
+- 订单查询：订单详情、我的订单游标分页、公共池游标分页、订单状态数量。
+- 订单状态机：`WAIT_GRAB -> WAIT_SERVICE -> IN_SERVICE -> WAIT_CONFIRM -> COMPLETED`，取消和超时关闭为终态。
+- 志愿者工作台：今日签到、签到状态、签到记录分页、工作台摘要。
+- 消息中心：我的消息分页、未读数、单条已读、全部已读。
+- 评价体系：订单完成后评价志愿者，订单唯一评价防重。
+- MQ Outbox：订单事务内写 `order_event_outbox`，定时任务异步发送 RabbitMQ，失败自动重试。
+- 网关增强：重点接口 Redis 限流、访问日志、慢接口 warn 日志。
+
+新增数据库脚本：
+
+```bash
+docker cp docs/sql/05-v2-miniapp-enhancement.sql elder-care-mysql:/tmp/05-v2-miniapp-enhancement.sql
+docker exec elder-care-mysql mysql -uroot -proot123456 --default-character-set=utf8mb4 -e "source /tmp/05-v2-miniapp-enhancement.sql"
+```
+
+第二版新增表：
+
+- `order_db.order_event_outbox`
+- `order_db.order_evaluation`
+- `volunteer_db.volunteer_checkin_record`
+- `volunteer_db.volunteer_time_compensation`
+
+第二版新增接口：
+
+```text
+POST /auth/wx-login
+POST /auth/refresh-token
+POST /auth/logout
+GET  /auth/current
+POST /auth/switch-role
+
+GET  /orders/{orderId}
+GET  /orders/my/page
+GET  /orders/pool/page
+GET  /orders/status-count
+POST /orders/{orderId}/start
+POST /orders/{orderId}/submit-complete
+POST /orders/{orderId}/confirm
+POST /orders/{orderId}/evaluate
+GET  /volunteers/{volunteerId}/reviews
+GET  /volunteers/{volunteerId}/score
+
+POST /volunteers/check-in
+GET  /volunteers/check-in/today
+GET  /volunteers/check-in/page
+GET  /volunteers/workbench
+
+GET  /notices/my/page
+GET  /notices/unread-count
+POST /notices/{noticeId}/read
+POST /notices/read-all
+```
+
+推荐第二版测试链路：
+
+```bash
+# 1. 微信登录老人，真实小程序传 wx.login() 返回的 code。
+curl -X POST http://127.0.0.1:8080/auth/wx-login \
+  -H "Content-Type: application/json" \
+  -d '{"code":"wx-code-elder","communityId":1,"loginRole":"ELDER"}'
+
+# 2. 微信登录亲情号。
+curl -X POST http://127.0.0.1:8080/auth/wx-login \
+  -H "Content-Type: application/json" \
+  -d '{"code":"wx-code-family","communityId":1,"loginRole":"FAMILY"}'
+
+# 3. 查看当前用户。
+curl http://127.0.0.1:8080/auth/current \
+  -H "Authorization: Bearer $TOKEN"
+
+# 4. 志愿者登录、完善资料、签到。
+curl -X POST http://127.0.0.1:8080/volunteers/check-in \
+  -H "Authorization: Bearer $VOLUNTEER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"longitude":116.397128,"latitude":39.916527,"address":"社区服务站"}'
+
+# 5. 我的订单分页。
+curl "http://127.0.0.1:8080/orders/my/page?size=10" \
+  -H "Authorization: Bearer $TOKEN"
+
+# 6. 公共订单池分页。
+curl "http://127.0.0.1:8080/orders/pool/page?size=10" \
+  -H "Authorization: Bearer $VOLUNTEER_TOKEN"
+
+# 7. 抢单、开始服务、提交完成、确认完成。
+curl -X POST http://127.0.0.1:8080/orders/$ORDER_ID/grab -H "Authorization: Bearer $VOLUNTEER_TOKEN"
+curl -X POST http://127.0.0.1:8080/orders/$ORDER_ID/start -H "Authorization: Bearer $VOLUNTEER_TOKEN"
+curl -X POST http://127.0.0.1:8080/orders/$ORDER_ID/submit-complete -H "Authorization: Bearer $VOLUNTEER_TOKEN"
+curl -X POST http://127.0.0.1:8080/orders/$ORDER_ID/confirm -H "Authorization: Bearer $ELDER_TOKEN"
+
+# 8. 评价志愿者。
+curl -X POST http://127.0.0.1:8080/orders/$ORDER_ID/evaluate \
+  -H "Authorization: Bearer $ELDER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"score":5,"tags":"准时,耐心","content":"服务很好","anonymous":false}'
+
+# 9. 消息中心。
+curl "http://127.0.0.1:8080/notices/my/page?size=10" -H "Authorization: Bearer $ELDER_TOKEN"
+curl http://127.0.0.1:8080/notices/unread-count -H "Authorization: Bearer $ELDER_TOKEN"
+```
+
+并发和一致性说明：
+
+- 抢单仍使用 `lock:order:grab:{orderId}` Redisson 锁，并保留 MySQL 条件更新 `where order_status = 'WAIT_GRAB'`，所以并发抢单只有一个请求能更新成功。
+- 发布订单、抢单、取消、签到、评价等接口使用 `@RepeatSubmit` 或数据库唯一索引防重复。
+- 志愿者时间冲突继续使用 Redisson 锁 + MySQL 唯一索引双保险。
+- 订单事件不再在业务事务里直接发 MQ，而是先写 `order_event_outbox`；事务提交后定时任务发送，失败进入 `FAILED` 并按 `next_retry_time` 重试。
+- notify-service 消费时继续按 `mq_message_id/eventId` 唯一索引做幂等，避免重复通知。

@@ -35,5 +35,5 @@ elder-care:
   jwt:
     # 演示用 JWT 密钥。
     secret: ${JWT_SECRET:elder-care-platform-jwt-secret-demo-please-change}
-    # Token 默认有效期为 7 天。
-    expire-seconds: ${JWT_EXPIRE_SECONDS:604800}
+    # Token 默认有效期为 2 小时。
+    expire-seconds: ${JWT_EXPIRE_SECONDS:7200}

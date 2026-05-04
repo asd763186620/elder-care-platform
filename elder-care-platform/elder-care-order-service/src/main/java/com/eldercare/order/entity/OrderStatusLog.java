@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
+import java.time.LocalDateTime;
+
 /**
  * 订单状态日志实体，对应 order_db.order_status_log 表。
  */
@@ -30,6 +32,8 @@ public class OrderStatusLog {
     private String operateType;
     /** 操作说明。 */
     private String operateRemark;
+    /** 创建时间。 */
+    private LocalDateTime createdAt;
 
     /** 创建状态日志。 */
     public static OrderStatusLog of(ServiceOrder order, String fromStatus, String toStatus, Long operatorUserId, String operateType) {
@@ -64,4 +68,6 @@ public class OrderStatusLog {
     public void setOperateType(String operateType) { this.operateType = operateType; }
     public String getOperateRemark() { return operateRemark; }
     public void setOperateRemark(String operateRemark) { this.operateRemark = operateRemark; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

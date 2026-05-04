@@ -2,8 +2,14 @@ package com.eldercare.volunteer.controller;
 
 import com.eldercare.api.dto.AvailableVolunteerQueryDTO;
 import com.eldercare.api.dto.VolunteerAvailableTimeDTO;
+import com.eldercare.api.dto.VolunteerCheckinDTO;
 import com.eldercare.api.dto.VolunteerProfileDTO;
+import com.eldercare.api.vo.CursorPageVO;
 import com.eldercare.api.vo.VolunteerBriefVO;
+import com.eldercare.api.vo.VolunteerCheckinRecordVO;
+import com.eldercare.api.vo.VolunteerCheckinTodayVO;
+import com.eldercare.api.vo.VolunteerWorkbenchVO;
+import com.eldercare.common.annotation.RepeatSubmit;
 import com.eldercare.common.annotation.RequireRole;
 import com.eldercare.common.constant.RoleConstants;
 import com.eldercare.common.response.Result;
@@ -15,6 +21,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -80,5 +87,50 @@ public class VolunteerController {
                                                     @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
                                                     @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime) {
         return Result.success(service.listAvailable(new AvailableVolunteerQueryDTO(serviceItemId, startTime, endTime)));
+    }
+
+    /**
+     * 志愿者今日签到。
+     */
+    @PostMapping("/check-in")
+    @RepeatSubmit(expireSeconds = 5)
+    @RequireRole(RoleConstants.VOLUNTEER)
+    @Operation(summary = "志愿者签到", description = "同一志愿者同一天只能签到一次，使用唯一索引防重")
+    public Result<Void> checkIn(@Valid @RequestBody VolunteerCheckinDTO dto) {
+        service.checkIn(dto);
+        return Result.success();
+    }
+
+    /**
+     * 今日签到状态。
+     */
+    @GetMapping("/check-in/today")
+    @RequireRole(RoleConstants.VOLUNTEER)
+    @Operation(summary = "今日签到状态", description = "查询当前志愿者今天是否已签到")
+    public Result<VolunteerCheckinTodayVO> todayCheckin() {
+        return Result.success(service.todayCheckin());
+    }
+
+    /**
+     * 签到记录分页。
+     */
+    @GetMapping("/check-in/page")
+    @RequireRole(RoleConstants.VOLUNTEER)
+    @Operation(summary = "签到记录分页", description = "游标分页查询当前志愿者自己的签到记录")
+    public Result<CursorPageVO<VolunteerCheckinRecordVO>> checkinPage(@RequestParam(required = false) Long lastId,
+                                                                      @RequestParam(required = false) Integer size,
+                                                                      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+                                                                      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return Result.success(service.checkinPage(lastId, size, startDate, endDate));
+    }
+
+    /**
+     * 志愿者工作台。
+     */
+    @GetMapping("/workbench")
+    @RequireRole(RoleConstants.VOLUNTEER)
+    @Operation(summary = "志愿者工作台", description = "返回签到状态、接单状态和基础工作台统计")
+    public Result<VolunteerWorkbenchVO> workbench() {
+        return Result.success(service.workbench());
     }
 }

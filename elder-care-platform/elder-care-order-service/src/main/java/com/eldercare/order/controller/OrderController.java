@@ -1,7 +1,8 @@
 package com.eldercare.order.controller;
 
 import com.eldercare.api.dto.OrderCreateDTO;
-import com.eldercare.api.vo.OrderVO;
+import com.eldercare.api.dto.OrderEvaluateDTO;
+import com.eldercare.api.vo.*;
 import com.eldercare.common.annotation.RepeatSubmit;
 import com.eldercare.common.annotation.RequireRole;
 import com.eldercare.common.constant.RoleConstants;
@@ -75,6 +76,47 @@ public class OrderController {
     }
 
     /**
+     * 查询订单详情。
+     */
+    @GetMapping("/{orderId}")
+    @Operation(summary = "订单详情", description = "按当前登录身份校验后返回订单基础信息和状态日志")
+    public Result<OrderDetailVO> detail(@PathVariable Long orderId) {
+        return Result.success(service.detail(orderId));
+    }
+
+    /**
+     * 我的订单游标分页。
+     */
+    @GetMapping("/my/page")
+    @Operation(summary = "我的订单分页", description = "使用 id 游标分页，避免深分页")
+    public Result<CursorPageVO<OrderVO>> myPage(@RequestParam(required = false) String status,
+                                                @RequestParam(required = false) Long lastId,
+                                                @RequestParam(required = false) Integer size) {
+        return Result.success(service.myOrdersPage(status, lastId, size));
+    }
+
+    /**
+     * 公共订单池游标分页。
+     */
+    @GetMapping("/pool/page")
+    @RequireRole(RoleConstants.VOLUNTEER)
+    @Operation(summary = "公共订单池分页", description = "只返回当前社区 WAIT_GRAB 且未过期的公共池订单")
+    public Result<CursorPageVO<OrderVO>> poolPage(@RequestParam(required = false) Long serviceItemId,
+                                                  @RequestParam(required = false) Long lastId,
+                                                  @RequestParam(required = false) Integer size) {
+        return Result.success(service.poolPage(serviceItemId, lastId, size));
+    }
+
+    /**
+     * 我的订单状态数量。
+     */
+    @GetMapping("/status-count")
+    @Operation(summary = "我的订单状态数量", description = "按当前身份统计订单各状态数量")
+    public Result<OrderStatusCountVO> statusCount() {
+        return Result.success(service.statusCount());
+    }
+
+    /**
      * 志愿者抢单。
      * 内部使用 Redisson 分布式锁和 MySQL 条件更新保证并发安全。
      *
@@ -120,5 +162,73 @@ public class OrderController {
     public Result<Void> complete(@PathVariable Long orderId) {
         service.complete(orderId);
         return Result.success();
+    }
+
+    /**
+     * 志愿者开始服务。
+     */
+    @PostMapping("/{orderId}/start")
+    @RepeatSubmit(expireSeconds = 5)
+    @RequireRole(RoleConstants.VOLUNTEER)
+    @Operation(summary = "开始服务", description = "接单志愿者将订单从 WAIT_SERVICE 更新为 IN_SERVICE")
+    public Result<Void> start(@PathVariable Long orderId) {
+        service.start(orderId);
+        return Result.success();
+    }
+
+    /**
+     * 志愿者提交完成。
+     */
+    @PostMapping("/{orderId}/submit-complete")
+    @RepeatSubmit(expireSeconds = 5)
+    @RequireRole(RoleConstants.VOLUNTEER)
+    @Operation(summary = "提交完成", description = "接单志愿者将订单从 IN_SERVICE 更新为 WAIT_CONFIRM")
+    public Result<Void> submitComplete(@PathVariable Long orderId) {
+        service.submitComplete(orderId);
+        return Result.success();
+    }
+
+    /**
+     * 老人或亲情号确认完成。
+     */
+    @PostMapping("/{orderId}/confirm")
+    @RepeatSubmit(expireSeconds = 5)
+    @RequireRole({RoleConstants.ELDER, RoleConstants.FAMILY})
+    @Operation(summary = "确认完成", description = "老人本人或绑定亲情号确认订单完成")
+    public Result<Void> confirm(@PathVariable Long orderId) {
+        service.confirm(orderId);
+        return Result.success();
+    }
+
+    /**
+     * 订单评价。
+     */
+    @PostMapping("/{orderId}/evaluate")
+    @RepeatSubmit(expireSeconds = 5)
+    @RequireRole({RoleConstants.ELDER, RoleConstants.FAMILY})
+    @Operation(summary = "评价订单", description = "订单完成后老人本人或绑定亲情号评价志愿者")
+    public Result<Void> evaluate(@PathVariable Long orderId, @Valid @RequestBody OrderEvaluateDTO dto) {
+        service.evaluate(orderId, dto);
+        return Result.success();
+    }
+
+    /**
+     * 查询志愿者评价。
+     */
+    @GetMapping("/volunteers/{volunteerId}/reviews")
+    @Operation(summary = "志愿者评价分页", description = "按游标分页查看志愿者评价列表")
+    public Result<CursorPageVO<OrderEvaluationVO>> volunteerReviews(@PathVariable Long volunteerId,
+                                                                    @RequestParam(required = false) Long lastId,
+                                                                    @RequestParam(required = false) Integer size) {
+        return Result.success(service.volunteerReviews(volunteerId, lastId, size));
+    }
+
+    /**
+     * 查询志愿者评分。
+     */
+    @GetMapping("/volunteers/{volunteerId}/score")
+    @Operation(summary = "志愿者评分", description = "查看志愿者平均评分、服务次数和评价数量")
+    public Result<VolunteerScoreVO> volunteerScore(@PathVariable Long volunteerId) {
+        return Result.success(service.volunteerScore(volunteerId));
     }
 }

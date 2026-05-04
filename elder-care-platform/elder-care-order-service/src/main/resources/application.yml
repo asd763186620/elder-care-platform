@@ -33,6 +33,15 @@ mybatis-plus:
     # 控制台输出 SQL，方便第一阶段学习和调试。
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
+feign:
+  client:
+    config:
+      default:
+        # Feign 连接超时，单位毫秒。
+        connectTimeout: 3000
+        # Feign 读取超时，单位毫秒。
+        readTimeout: 5000
+
 management:
   endpoints:
     web:
@@ -44,8 +53,8 @@ elder-care:
   jwt:
     # 演示用 JWT 密钥。
     secret: ${JWT_SECRET:elder-care-platform-jwt-secret-demo-please-change}
-    # Token 默认有效期为 7 天。
-    expire-seconds: ${JWT_EXPIRE_SECONDS:604800}
+    # Token 默认有效期为 2 小时。
+    expire-seconds: ${JWT_EXPIRE_SECONDS:7200}
   mq:
     # 订单状态变化后发送通知消息的队列。
     notify-queue: elder.care.notify.queue
