@@ -6,6 +6,31 @@ package com.eldercare.common.constant;
 public final class MqConstants {
 
     /**
+     * 日志交换机。
+     */
+    public static final String LOG_EXCHANGE = "elder.care.log.exchange";
+
+    /**
+     * 接口访问日志队列。
+     */
+    public static final String API_ACCESS_LOG_QUEUE = "elder.care.log.api-access.queue";
+
+    /**
+     * 操作审计日志队列。
+     */
+    public static final String OPERATION_LOG_QUEUE = "elder.care.log.operation.queue";
+
+    /**
+     * 接口访问日志路由键。
+     */
+    public static final String API_ACCESS_LOG_ROUTING_KEY = "log.api-access";
+
+    /**
+     * 操作审计日志路由键。
+     */
+    public static final String OPERATION_LOG_ROUTING_KEY = "log.operation";
+
+    /**
      * 订单事件交换机。
      */
     public static final String ORDER_EVENT_EXCHANGE = "elder.care.order.event.exchange";

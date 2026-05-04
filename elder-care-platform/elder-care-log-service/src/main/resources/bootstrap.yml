@@ -1,0 +1,19 @@
+spring:
+  application:
+    # 日志服务注册名。
+    name: elder-care-log-service
+  cloud:
+    nacos:
+      # Nacos 服务地址。
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      discovery:
+        # 注册中心地址。
+        server-addr: ${spring.cloud.nacos.server-addr}
+      config:
+        # 配置中心地址。
+        server-addr: ${spring.cloud.nacos.server-addr}
+        # 配置后缀。
+        file-extension: yaml
+        import-check:
+          # 允许本地没有 Nacos 配置。
+          enabled: false

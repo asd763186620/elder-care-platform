@@ -22,11 +22,13 @@
         <module>elder-care-common</module>
         <module>elder-care-api</module>
         <module>elder-care-gateway</module>
+        <module>elder-care-auth-service</module>
         <module>elder-care-user-service</module>
         <module>elder-care-community-service</module>
         <module>elder-care-volunteer-service</module>
         <module>elder-care-order-service</module>
         <module>elder-care-notify-service</module>
+        <module>elder-care-log-service</module>
     </modules>
 
     <properties>

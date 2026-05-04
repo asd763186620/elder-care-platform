@@ -1,1 +1,2 @@
 com.eldercare.common.config.CommonAutoConfiguration
+com.eldercare.common.config.RepeatSubmitAutoConfiguration

@@ -1,0 +1,20 @@
+# 认证服务 Nacos 配置。
+spring:
+  application:
+    # 当前服务注册到 Nacos 的名称。
+    name: elder-care-auth-service
+  cloud:
+    nacos:
+      # Nacos 服务地址，Docker Compose 内部可使用 nacos:8848，本机运行可使用 127.0.0.1:8848。
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      discovery:
+        # Nacos 注册中心地址。
+        server-addr: ${spring.cloud.nacos.server-addr}
+      config:
+        # Nacos 配置中心地址。
+        server-addr: ${spring.cloud.nacos.server-addr}
+        # 配置文件扩展名。
+        file-extension: yaml
+        import-check:
+          # 允许本地先不在 Nacos 中创建 auth-service 配置。
+          enabled: false

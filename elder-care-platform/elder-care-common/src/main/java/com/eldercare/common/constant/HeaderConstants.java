@@ -31,6 +31,11 @@ public final class HeaderConstants {
     public static final String USER_PHONE = "X-User-Phone";
 
     /**
+     * 请求链路 ID，由 Gateway 生成并透传给后端服务。
+     */
+    public static final String TRACE_ID = "X-Trace-Id";
+
+    /**
      * 私有构造方法，防止工具常量类被实例化。
      */
     private HeaderConstants() {

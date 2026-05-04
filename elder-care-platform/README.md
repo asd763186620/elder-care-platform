@@ -25,7 +25,8 @@
 - `elder-care-gateway`：统一网关，负责路由、JWT 校验、用户信息透传。
 - `elder-care-common`：统一返回、异常、常量、JWT、用户上下文、`@RepeatSubmit`、`@RequireRole`。
 - `elder-care-api`：Feign Client、DTO、VO。
-- `elder-care-user-service`：用户、登录、角色、老人资料、亲情号绑定。
+- `elder-care-auth-service`：认证中心，负责微信登录、JWT 签发、refreshToken、退出登录、手机号绑定和身份切换。
+- `elder-care-user-service`：用户资料、角色、老人资料、亲情号绑定。
 - `elder-care-community-service`：社区、服务项目。
 - `elder-care-volunteer-service`：志愿者资料、可服务时间、时间锁。
 - `elder-care-order-service`：预约单、指定志愿者、公共池抢单、状态流转、MQ 生产。
@@ -66,6 +67,7 @@ docker exec elder-care-mysql mysql -uroot -proot123456 --default-character-set=u
 4. 按顺序启动服务：
 
 ```bash
+java -jar elder-care-auth-service/target/elder-care-auth-service-0.0.1-SNAPSHOT.jar
 java -jar elder-care-user-service/target/elder-care-user-service-0.0.1-SNAPSHOT.jar
 java -jar elder-care-community-service/target/elder-care-community-service-0.0.1-SNAPSHOT.jar
 java -jar elder-care-volunteer-service/target/elder-care-volunteer-service-0.0.1-SNAPSHOT.jar
@@ -77,6 +79,7 @@ java -jar elder-care-gateway/target/elder-care-gateway-0.0.1-SNAPSHOT.jar
 服务端口：
 
 - Gateway：`8080`
+- auth-service：`8100`
 - user-service：`8101`
 - community-service：`8102`
 - volunteer-service：`8103`
@@ -137,13 +140,13 @@ repeat:{userId}:{uri}:{requestHash}
 
 ## Postman 测试顺序
 
-1. `POST /auth/mock-login`，亲情号登录：`userId=201`，角色 `FAMILY`
+1. `POST /auth/wx-login`，亲情号登录：传 `code`、`communityId=1`、`loginRole=FAMILY`
 2. `GET /family/elders`，查询绑定老人，得到老人 `101`
 3. `GET /service-items`，查询服务项目，得到项目 `1/2/3`
 4. `GET /volunteers/available`，查询可用志愿者
 5. `POST /orders`，发布指定志愿者订单，`assignMode=ASSIGNED`
 6. `POST /orders`，发布公共池订单，`assignMode=PUBLIC`
-7. `POST /auth/mock-login`，志愿者登录：`userId=302`，角色 `VOLUNTEER`
+7. `POST /auth/wx-login`，志愿者登录：传 `code`、`communityId=1`、`loginRole=VOLUNTEER`
 8. `GET /orders/pool`，查看公共订单池
 9. `POST /orders/{orderId}/grab`，抢单
 10. `GET /orders/my`，查询订单状态
@@ -151,12 +154,14 @@ repeat:{userId}:{uri}:{requestHash}
 
 ## curl 示例
 
+本地没有真实微信 `code` 时，可以临时给 auth-service 增加环境变量 `WECHAT_MINI_APP_MOCK_ENABLED=true`，此时 `/auth/wx-login` 会用 `code` 派生稳定 `openId`。这只是本地联调开关，不再提供 `/auth/mock-login` 接口。
+
 亲情号登录：
 
 ```bash
-FAMILY_TOKEN=$(curl -s -X POST http://127.0.0.1:8080/auth/mock-login \
+FAMILY_TOKEN=$(curl -s -X POST http://127.0.0.1:8080/auth/wx-login \
   -H 'Content-Type: application/json' \
-  -d '{"userId":201,"communityId":1,"roles":["FAMILY"]}' \
+  -d '{"code":"family-test-code","communityId":1,"loginRole":"FAMILY"}' \
   | sed -E 's/.*"token":"([^"]+)".*/\1/')
 ```
 
@@ -203,9 +208,9 @@ PUBLIC_ORDER_ID=$(curl -s -X POST http://127.0.0.1:8080/orders \
 志愿者登录：
 
 ```bash
-VOLUNTEER_TOKEN=$(curl -s -X POST http://127.0.0.1:8080/auth/mock-login \
+VOLUNTEER_TOKEN=$(curl -s -X POST http://127.0.0.1:8080/auth/wx-login \
   -H 'Content-Type: application/json' \
-  -d '{"userId":302,"communityId":1,"roles":["VOLUNTEER"]}' \
+  -d '{"code":"volunteer-test-code","communityId":1,"loginRole":"VOLUNTEER"}' \
   | sed -E 's/.*"token":"([^"]+)".*/\1/')
 ```
 
@@ -241,6 +246,7 @@ curl -X POST http://127.0.0.1:8080/orders/$PUBLIC_ORDER_ID/complete \
 
 ```bash
 curl http://127.0.0.1:8080/actuator/health
+curl http://127.0.0.1:8100/actuator/health
 curl http://127.0.0.1:8101/actuator/health
 curl http://127.0.0.1:8102/actuator/health
 curl http://127.0.0.1:8103/actuator/health
@@ -250,7 +256,9 @@ curl http://127.0.0.1:8105/actuator/health
 
 Swagger：
 
-- 网关聚合文档：`http://127.0.0.1:8080/swagger-ui.html`
+- 统一聚合入口：`http://127.0.0.1:8080/swagger-ui.html`
+- 页面右上角可以切换：认证服务、用户服务、社区服务、志愿者服务、订单服务、通知服务。
+- 认证服务：`http://127.0.0.1:8100/swagger-ui.html`
 - 用户服务：`http://127.0.0.1:8101/swagger-ui.html`
 - 社区服务：`http://127.0.0.1:8102/swagger-ui.html`
 - 志愿者服务：`http://127.0.0.1:8103/swagger-ui.html`
@@ -301,13 +309,34 @@ Swagger：
 - Redis / Redisson 在允许本机网络访问后可连接。
 - RabbitMQ exchange / queue 由 order-service 和 notify-service 的配置类自动声明。
 
+## Swagger 聚合说明
+
+项目只需要访问一个 Swagger 地址：
+
+```text
+http://127.0.0.1:8080/swagger-ui.html
+```
+
+Gateway 会把以下 OpenAPI 文档代理到各个微服务：
+
+```text
+/v3/api-docs/auth       -> elder-care-auth-service
+/v3/api-docs/user       -> elder-care-user-service
+/v3/api-docs/community  -> elder-care-community-service
+/v3/api-docs/volunteer  -> elder-care-volunteer-service
+/v3/api-docs/order      -> elder-care-order-service
+/v3/api-docs/notify     -> elder-care-notify-service
+```
+
+注意：聚合 Swagger 依赖 Nacos 服务发现和 Gateway `lb://` 路由，所以查看聚合文档前需要先启动对应业务服务。
+
 ## 第二版小程序端增强
 
 本次第二版在第一版主链路上继续增强小程序端闭环，不新增后台管理页面。
 
 新增能力：
 
-- 微信小程序登录增强：`POST /auth/wx-login` 支持 `code`、`communityId`、`loginRole`，保留 `POST /auth/mock-login`。
+- 微信小程序登录增强：`POST /auth/wx-login` 支持 `code`、`communityId`、`loginRole`，认证入口已统一迁移到 `elder-care-auth-service`。
 - Token 机制：accessToken 默认 2 小时，refreshToken 默认 30 天并存 Redis，退出登录会删除当前 refreshToken 并递增版本。
 - 当前用户：`GET /auth/current` 返回当前角色、角色列表、手机号、老人档案摘要和志愿者摘要。
 - 订单查询：订单详情、我的订单游标分页、公共池游标分页、订单状态数量。
@@ -418,3 +447,73 @@ curl http://127.0.0.1:8080/notices/unread-count -H "Authorization: Bearer $ELDER
 - 志愿者时间冲突继续使用 Redisson 锁 + MySQL 唯一索引双保险。
 - 订单事件不再在业务事务里直接发 MQ，而是先写 `order_event_outbox`；事务提交后定时任务发送，失败进入 `FAILED` 并按 `next_retry_time` 重试。
 - notify-service 消费时继续按 `mq_message_id/eventId` 唯一索引做幂等，避免重复通知。
+
+## 日志监控能力
+
+本次新增 `elder-care-log-service`，用于接收 Gateway 接口访问日志和业务服务操作审计日志。日志写入独立数据库 `elder_log`，不和业务库混放。
+
+新增日志库脚本：
+
+```bash
+docker cp docs/sql/06-log-service-schema.sql elder-care-mysql:/tmp/06-log-service-schema.sql
+docker exec elder-care-mysql mysql -uroot -proot123456 --default-character-set=utf8mb4 -e "source /tmp/06-log-service-schema.sql"
+```
+
+日志链路：
+
+```text
+小程序请求
+  -> elder-care-gateway
+  -> ApiAccessLogGlobalFilter 生成/透传 X-Trace-Id，并统计接口耗时
+  -> RabbitMQ elder.care.log.exchange
+  -> elder-care-log-service 消费
+  -> elder_log.api_access_log
+
+业务写操作
+  -> @OperationLog 标记的 Service 方法
+  -> OperationLogAspect 记录成功/失败、参数、耗时和业务 ID
+  -> RabbitMQ elder.care.log.exchange
+  -> elder-care-log-service 消费
+  -> elder_log.operation_log
+```
+
+日志查询接口：
+
+```text
+GET /logs/api-access/page?pageNo=1&pageSize=10
+GET /logs/api-access/slow/page?pageNo=1&pageSize=10
+GET /logs/operation/user/{userId}?pageNo=1&pageSize=10
+GET /logs/operation/biz/{bizId}
+GET /logs/trace/{traceId}
+```
+
+验证示例：
+
+```bash
+# 1. 访问任意网关接口，响应失败也会记录接口访问日志。
+curl http://127.0.0.1:8080/auth/current
+
+# 2. 查询接口访问日志。
+curl "http://127.0.0.1:8080/logs/api-access/page?pageNo=1&pageSize=10" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+
+# 3. 查询慢接口日志，阈值由 log.api.slow-threshold-ms 控制，默认 1000ms。
+curl "http://127.0.0.1:8080/logs/api-access/slow/page?pageNo=1&pageSize=10" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+
+# 4. 调用发布订单、抢单、取消、签到等带 @OperationLog 的接口后查询操作日志。
+curl "http://127.0.0.1:8080/logs/operation/biz/$ORDER_ID" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+
+# 5. 从 api_access_log 中拿到 traceId 后，查询一次请求链路。
+curl "http://127.0.0.1:8080/logs/trace/$TRACE_ID" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+关键实现点：
+
+- Gateway 的 `ApiAccessLogGlobalFilter` 只采集并异步发送日志，RabbitMQ 异常只打印错误，不影响接口响应。
+- 慢接口阈值可通过 `LOG_API_SLOW_THRESHOLD_MS` 或 `log.api.slow-threshold-ms` 配置。
+- `@OperationLog` 支持 SpEL 解析 `bizId`，例如 `#orderId`、`#bindDTO.elderUserId`。
+- 日志参数会脱敏 `password`、`token`、`authorization`、`refreshToken`、`secret`、`appSecret` 等字段，并做长度截断。
+- `X-Trace-Id` 由 Gateway 生成并透传给业务服务，接口日志和操作日志可以按 traceId 关联排查。

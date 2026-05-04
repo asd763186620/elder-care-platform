@@ -78,7 +78,7 @@ public class AccessLogAndRateLimitFilter implements GlobalFilter, Ordered {
     /** 根据路径匹配限流规则。 */
     private RateRule rule(String path) {
         // 登录接口按 IP 限流。
-        if (path.startsWith("/auth/wx-login") || path.startsWith("/auth/mock-login")) return new RateRule("login", 30, Duration.ofMinutes(1));
+        if (path.startsWith("/auth/wx-login")) return new RateRule("login", 30, Duration.ofMinutes(1));
         // 刷新令牌按 IP 或用户限流。
         if (path.startsWith("/auth/refresh-token")) return new RateRule("refresh", 60, Duration.ofMinutes(1));
         // 抢单接口按用户 1 秒最多 3 次。

@@ -1,0 +1,55 @@
+# 认证服务本地基础配置。
+server:
+  # 认证服务端口。
+  port: 8100
+
+spring:
+  datasource:
+    # 认证服务读取 user_db 中的账号、角色和档案数据。
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:user_db}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    # MySQL 用户名。
+    username: ${MYSQL_USERNAME:root}
+    # MySQL 密码。
+    password: ${MYSQL_PASSWORD:root123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      # Redis 主机，用于保存 refreshToken。
+      host: ${REDIS_HOST:127.0.0.1}
+      # Redis 端口。
+      port: ${REDIS_PORT:6379}
+  rabbitmq:
+    # RabbitMQ 主机，用于异步发送认证操作日志。
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    # RabbitMQ AMQP 端口。
+    port: ${RABBITMQ_PORT:5672}
+    # RabbitMQ 用户名。
+    username: ${RABBITMQ_USERNAME:elder}
+    # RabbitMQ 密码。
+    password: ${RABBITMQ_PASSWORD:elder123456}
+
+mybatis-plus:
+  configuration:
+    # 控制台输出 SQL，方便调试登录链路。
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # 暴露健康检查端点。
+        include: health,info
+
+elder-care:
+  jwt:
+    # 演示用 JWT 密钥，生产环境必须放入 Nacos 或环境变量。
+    secret: ${JWT_SECRET:elder-care-platform-jwt-secret-demo-please-change}
+    # accessToken 默认有效期 2 小时。
+    expire-seconds: ${JWT_EXPIRE_SECONDS:7200}
+  wechat-mini-app:
+    # 微信小程序 appId。
+    app-id: ${WECHAT_MINI_APP_ID:wx555d830d73f10a1f}
+    # 微信小程序 appSecret，必须通过环境变量或 Nacos 注入。
+    secret: ${WECHAT_MINI_APP_SECRET:05e61cb2917c35c1e2b2e04b250ef478}
+    # 本地调试需要模拟 openId 时可以显式打开。
+    mock-enabled: ${WECHAT_MINI_APP_MOCK_ENABLED:false}

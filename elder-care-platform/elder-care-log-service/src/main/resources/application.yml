@@ -1,0 +1,35 @@
+# 日志服务本地基础配置。
+server:
+  # 日志服务端口。
+  port: 8106
+
+spring:
+  datasource:
+    # 日志库连接地址。
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${LOG_MYSQL_DATABASE:elder_log}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    # MySQL 用户名。
+    username: ${MYSQL_USERNAME:root}
+    # MySQL 密码。
+    password: ${MYSQL_PASSWORD:root123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  rabbitmq:
+    # RabbitMQ 主机。
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    # RabbitMQ AMQP 端口。
+    port: ${RABBITMQ_PORT:5672}
+    # RabbitMQ 用户名。
+    username: ${RABBITMQ_USERNAME:elder}
+    # RabbitMQ 密码。
+    password: ${RABBITMQ_PASSWORD:elder123456}
+
+mybatis-plus:
+  configuration:
+    # 控制台输出 SQL，方便本地验证日志查询。
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # 暴露健康检查端点。
+        include: health,info

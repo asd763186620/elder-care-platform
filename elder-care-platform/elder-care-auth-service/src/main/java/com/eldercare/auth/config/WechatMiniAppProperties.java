@@ -1,20 +1,20 @@
-package com.eldercare.user.config;
+package com.eldercare.auth.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.stereotype.Component;
 
 /**
  * 微信小程序登录配置。
  */
+@Component
 @ConfigurationProperties(prefix = "elder-care.wechat-mini-app")
 public class WechatMiniAppProperties {
     /** 小程序 appId。 */
     private String appId;
-
     /** 小程序 appSecret。 */
     private String secret;
-
-    /** 未配置微信参数时是否允许本地 mock code 登录。 */
-    private boolean mockEnabled = true;
+    /** 是否启用本地模拟微信返回。 */
+    private boolean mockEnabled;
 
     public String getAppId() {
         // 返回 appId。
@@ -37,12 +37,12 @@ public class WechatMiniAppProperties {
     }
 
     public boolean isMockEnabled() {
-        // 返回是否允许 mock。
+        // 返回是否开启 mock。
         return mockEnabled;
     }
 
     public void setMockEnabled(boolean mockEnabled) {
-        // 设置是否允许 mock。
+        // 设置是否开启 mock。
         this.mockEnabled = mockEnabled;
     }
 }

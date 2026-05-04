@@ -46,10 +46,3 @@ elder-care:
     secret: ${JWT_SECRET:elder-care-platform-jwt-secret-demo-please-change}
     # Token 默认有效期为 2 小时。
     expire-seconds: ${JWT_EXPIRE_SECONDS:7200}
-  wechat-mini-app:
-    # 微信小程序 appId，真实环境通过环境变量或 Nacos 配置。
-    app-id: ${WECHAT_MINI_APP_ID:wx555d830d73f10a1f}
-    # 微信小程序 appSecret，真实环境必须放在安全配置中。
-    secret: ${WECHAT_MINI_APP_SECRET:05e61cb2917c35c1e2b2e04b250ef478}
-    # 已切换为真实微信链路；未配置 appId/secret 时直接报错，不再生成 mock openId。
-    mock-enabled: ${WECHAT_MINI_APP_MOCK_ENABLED:false}

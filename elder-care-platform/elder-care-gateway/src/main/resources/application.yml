@@ -4,14 +4,28 @@ server:
   port: 8080
 
 spring:
+  rabbitmq:
+    # RabbitMQ 主机，用于异步发送网关接口访问日志。
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    # RabbitMQ AMQP 端口。
+    port: ${RABBITMQ_PORT:5672}
+    # RabbitMQ 用户名。
+    username: ${RABBITMQ_USERNAME:elder}
+    # RabbitMQ 密码。
+    password: ${RABBITMQ_PASSWORD:elder123456}
   cloud:
     gateway:
       routes:
+        # 认证服务路由。
+        - id: elder-care-auth-service
+          uri: lb://elder-care-auth-service
+          predicates:
+            - Path=/auth/**
         # 用户服务路由。
         - id: elder-care-user-service
           uri: lb://elder-care-user-service
           predicates:
-            - Path=/api/user/**,/auth/**,/users/**,/elders/**,/family/**,/internal/users/**,/internal/family/**,/admin/users/**
+            - Path=/api/user/**,/users/**,/elders/**,/family/**,/internal/users/**,/internal/family/**,/admin/users/**
         # 社区服务路由。
         - id: elder-care-community-service
           uri: lb://elder-care-community-service
@@ -38,6 +52,18 @@ spring:
           uri: lb://elder-care-notify-service
           predicates:
             - Path=/api/notify/**,/notices/**,/admin/notify-records/**
+        # 日志服务路由。
+        - id: elder-care-log-service
+          uri: lb://elder-care-log-service
+          predicates:
+            - Path=/logs/**
+        # 认证服务 OpenAPI 文档路由。
+        - id: elder-care-auth-service-docs
+          uri: lb://elder-care-auth-service
+          predicates:
+            - Path=/v3/api-docs/auth
+          filters:
+            - RewritePath=/v3/api-docs/auth,/v3/api-docs
         # 用户服务 OpenAPI 文档路由。
         - id: elder-care-user-service-docs
           uri: lb://elder-care-user-service
@@ -73,13 +99,30 @@ spring:
             - Path=/v3/api-docs/notify
           filters:
             - RewritePath=/v3/api-docs/notify,/v3/api-docs
+        # 日志服务 OpenAPI 文档路由。
+        - id: elder-care-log-service-docs
+          uri: lb://elder-care-log-service
+          predicates:
+            - Path=/v3/api-docs/log
+          filters:
+            - RewritePath=/v3/api-docs/log,/v3/api-docs
 
 springdoc:
   swagger-ui:
-    # 网关 Swagger UI 地址。
+    # 网关唯一 Swagger 聚合入口：http://127.0.0.1:8080/swagger-ui.html。
     path: /swagger-ui.html
+    # 禁用 swagger-ui 默认示例地址，避免页面默认访问 petstore。
+    disable-swagger-default-url: true
+    # 默认选中认证服务文档，页面右上角可切换其他微服务。
+    urls-primary-name: 认证服务
+    # 接口按 HTTP 方法排序，方便查找。
+    operations-sorter: method
+    # Tag 按字母排序。
+    tags-sorter: alpha
     # 聚合显示所有业务服务的 OpenAPI 文档。
     urls:
+      - name: 认证服务
+        url: /v3/api-docs/auth
       - name: 用户服务
         url: /v3/api-docs/user
       - name: 社区服务
@@ -90,6 +133,8 @@ springdoc:
         url: /v3/api-docs/order
       - name: 通知服务
         url: /v3/api-docs/notify
+      - name: 日志服务
+        url: /v3/api-docs/log
 
 management:
   endpoints:
@@ -104,3 +149,8 @@ elder-care:
     secret: ${JWT_SECRET:elder-care-platform-jwt-secret-demo-please-change}
     # Token 默认有效期为 2 小时。
     expire-seconds: ${JWT_EXPIRE_SECONDS:7200}
+
+log:
+  api:
+    # 慢接口阈值，单位毫秒。
+    slow-threshold-ms: ${LOG_API_SLOW_THRESHOLD_MS:1000}

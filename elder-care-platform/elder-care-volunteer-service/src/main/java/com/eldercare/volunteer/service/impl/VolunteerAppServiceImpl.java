@@ -12,6 +12,9 @@ import com.eldercare.common.context.UserContext;
 import com.eldercare.common.context.UserInfoDTO;
 import com.eldercare.common.exception.BizException;
 import com.eldercare.common.exception.ErrorCode;
+import com.eldercare.common.log.annotation.OperationLog;
+import com.eldercare.common.log.enums.OperationModuleEnum;
+import com.eldercare.common.log.enums.OperationTypeEnum;
 import com.eldercare.volunteer.entity.VolunteerAvailableTime;
 import com.eldercare.volunteer.entity.VolunteerCheckinRecord;
 import com.eldercare.volunteer.entity.VolunteerProfile;
@@ -99,6 +102,8 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = OperationModuleEnum.VOLUNTEER, operationType = OperationTypeEnum.UPDATE,
+            description = "完善或更新志愿者资料")
     public void saveProfile(VolunteerProfileDTO dto) {
         // 从网关透传的请求头中读取当前登录用户和社区。
         UserInfoDTO user = currentUser();
@@ -122,6 +127,8 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
     }
 
     @Override
+    @OperationLog(module = OperationModuleEnum.VOLUNTEER, operationType = OperationTypeEnum.CREATE,
+            description = "新增志愿者可服务时间", bizId = "#dto.serviceItemId")
     public void addAvailableTime(VolunteerAvailableTimeDTO dto) {
         // 读取当前志愿者上下文。
         UserInfoDTO user = currentUser();
@@ -257,6 +264,8 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = OperationModuleEnum.CHECKIN, operationType = OperationTypeEnum.CHECKIN,
+            description = "志愿者今日签到", recordResult = false)
     public void checkIn(VolunteerCheckinDTO dto) {
         // 读取当前志愿者上下文。
         UserInfoDTO user = currentUser();

@@ -13,6 +13,9 @@ import com.eldercare.common.context.UserContext;
 import com.eldercare.common.context.UserInfoDTO;
 import com.eldercare.common.exception.BizException;
 import com.eldercare.common.exception.ErrorCode;
+import com.eldercare.common.log.annotation.OperationLog;
+import com.eldercare.common.log.enums.OperationModuleEnum;
+import com.eldercare.common.log.enums.OperationTypeEnum;
 import com.eldercare.order.entity.OrderEvaluation;
 import com.eldercare.order.entity.OrderEventOutbox;
 import com.eldercare.order.entity.OrderGrabRecord;
@@ -187,6 +190,8 @@ public class OrderAppServiceImpl implements OrderAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = OperationModuleEnum.ORDER, operationType = OperationTypeEnum.CREATE,
+            description = "发布预约单", bizId = "#dto.elderUserId", recordResult = true)
     public OrderVO create(OrderCreateDTO dto) {
         // 从请求头读取当前登录用户和社区上下文。
         UserInfoDTO user = currentUser();
@@ -354,6 +359,8 @@ public class OrderAppServiceImpl implements OrderAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = OperationModuleEnum.ORDER, operationType = OperationTypeEnum.GRAB_ORDER,
+            description = "志愿者抢单", bizId = "#orderId")
     public void grab(Long orderId) {
         // 读取当前志愿者上下文。
         UserInfoDTO user = currentUser();
@@ -419,6 +426,8 @@ public class OrderAppServiceImpl implements OrderAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = OperationModuleEnum.ORDER, operationType = OperationTypeEnum.CANCEL_ORDER,
+            description = "取消预约单", bizId = "#orderId")
     public void cancel(Long orderId) {
         // 取消订单并发送取消事件。
         changeStatus(orderId, OrderStatusEnum.CANCELLED, "CANCEL", MqConstants.ORDER_CANCELLED_ROUTING_KEY, "ORDER_CANCELLED");
@@ -426,6 +435,8 @@ public class OrderAppServiceImpl implements OrderAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = OperationModuleEnum.ORDER, operationType = OperationTypeEnum.COMPLETE_ORDER,
+            description = "兼容旧接口完成预约单", bizId = "#orderId")
     public void complete(Long orderId) {
         // 先加载用户上下文，避免直接读取 ThreadLocal 时为空。
         currentUser();
@@ -442,6 +453,8 @@ public class OrderAppServiceImpl implements OrderAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = OperationModuleEnum.ORDER, operationType = OperationTypeEnum.STATUS_CHANGE,
+            description = "志愿者开始服务", bizId = "#orderId")
     public void start(Long orderId) {
         // 开始服务并发送开始事件。
         changeStatus(orderId, OrderStatusEnum.IN_SERVICE, "START", MqConstants.ORDER_STARTED_ROUTING_KEY, "ORDER_STARTED");
@@ -449,6 +462,8 @@ public class OrderAppServiceImpl implements OrderAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = OperationModuleEnum.ORDER, operationType = OperationTypeEnum.STATUS_CHANGE,
+            description = "志愿者提交完成", bizId = "#orderId")
     public void submitComplete(Long orderId) {
         // 志愿者提交完成，进入待确认。
         changeStatus(orderId, OrderStatusEnum.WAIT_CONFIRM, "SUBMIT_COMPLETE", MqConstants.ORDER_SUBMITTED_ROUTING_KEY, "ORDER_SUBMITTED");
@@ -456,6 +471,8 @@ public class OrderAppServiceImpl implements OrderAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = OperationModuleEnum.ORDER, operationType = OperationTypeEnum.COMPLETE_ORDER,
+            description = "老人或亲情号确认完成", bizId = "#orderId")
     public void confirm(Long orderId) {
         // 老人或亲情号确认完成。
         changeStatus(orderId, OrderStatusEnum.COMPLETED, "CONFIRM_COMPLETE", MqConstants.ORDER_COMPLETED_ROUTING_KEY, "ORDER_COMPLETED");
@@ -463,6 +480,8 @@ public class OrderAppServiceImpl implements OrderAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = OperationModuleEnum.ORDER, operationType = OperationTypeEnum.CREATE,
+            description = "提交订单评价", bizId = "#orderId")
     public void evaluate(Long orderId, OrderEvaluateDTO dto) {
         // 读取当前用户上下文。
         UserInfoDTO user = currentUser();

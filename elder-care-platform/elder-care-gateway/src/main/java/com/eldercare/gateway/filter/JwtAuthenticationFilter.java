@@ -30,10 +30,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
      * 不需要登录即可访问的路径前缀。
      */
     private static final List<String> WHITE_PATH_PREFIXES = List.of(
-            "/auth/mock-login",
             "/auth/wx-login",
             "/auth/refresh-token",
-            "/api/user/auth/login",
             "/swagger-ui.html",
             "/swagger-ui",
             "/v3/api-docs",

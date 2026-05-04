@@ -18,6 +18,15 @@ spring:
       host: ${REDIS_HOST:127.0.0.1}
       # Redis 端口。
       port: ${REDIS_PORT:6379}
+  rabbitmq:
+    # RabbitMQ 主机，用于异步发送志愿者操作日志。
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    # RabbitMQ AMQP 端口。
+    port: ${RABBITMQ_PORT:5672}
+    # RabbitMQ 用户名。
+    username: ${RABBITMQ_USERNAME:elder}
+    # RabbitMQ 密码。
+    password: ${RABBITMQ_PASSWORD:elder123456}
 
 mybatis-plus:
   configuration:
