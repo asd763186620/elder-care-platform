@@ -1,6 +1,7 @@
 package com.eldercare.api.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.AssertTrue;
 
 /**
  * 多身份账号切换当前角色请求。
@@ -25,5 +26,14 @@ public record SwitchRoleDTO(
     public String targetRole() {
         // 第二版优先使用更直观的 role 字段。
         return role != null && !role.isBlank() ? role : roleCode;
+    }
+
+    /**
+     * Bean Validation 自定义校验：role 和 roleCode 至少传一个。
+     */
+    @AssertTrue(message = "role不能为空")
+    public boolean hasRoleInput() {
+        // 任意一个字段有值即可。
+        return (role != null && !role.isBlank()) || (roleCode != null && !roleCode.isBlank());
     }
 }

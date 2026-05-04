@@ -11,6 +11,10 @@ import java.util.Set;
  * 说明：第二版开始不再在业务代码里散落订单状态字符串，所有状态值统一从这里获取。
  */
 public enum OrderStatusEnum {
+    /** 待分配，生产语义下的公共池待抢单状态。 */
+    PENDING_ASSIGN,
+    /** 已分配，生产语义下已指定或已抢单成功状态。 */
+    ASSIGNED,
     /** 待抢单，公共池订单等待志愿者抢单。 */
     WAIT_GRAB,
     /** 待服务，已经指定志愿者或抢单成功。 */
@@ -30,6 +34,8 @@ public enum OrderStatusEnum {
      * 合法状态流转表。
      */
     private static final Map<OrderStatusEnum, Set<OrderStatusEnum>> TRANSITIONS = Map.of(
+            PENDING_ASSIGN, Set.of(ASSIGNED, CANCELLED, TIMEOUT_CLOSED),
+            ASSIGNED, Set.of(IN_SERVICE, CANCELLED, TIMEOUT_CLOSED),
             WAIT_GRAB, Set.of(WAIT_SERVICE, CANCELLED, TIMEOUT_CLOSED),
             WAIT_SERVICE, Set.of(IN_SERVICE, CANCELLED, TIMEOUT_CLOSED),
             IN_SERVICE, Set.of(WAIT_CONFIRM),

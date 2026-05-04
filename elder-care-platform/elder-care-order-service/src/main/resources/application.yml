@@ -27,6 +27,18 @@ spring:
     username: ${RABBITMQ_USERNAME:elder}
     # RabbitMQ 密码。
     password: ${RABBITMQ_PASSWORD:elder123456}
+  cloud:
+    openfeign:
+      circuitbreaker:
+        # 开启 OpenFeign fallbackFactory，避免远程服务异常直接冒泡成 500。
+        enabled: true
+      client:
+        config:
+          default:
+            # Spring Cloud OpenFeign 4.x 推荐配置：连接超时，单位毫秒。
+            connectTimeout: 3000
+            # Spring Cloud OpenFeign 4.x 推荐配置：读取超时，单位毫秒。
+            readTimeout: 5000
 
 mybatis-plus:
   configuration:

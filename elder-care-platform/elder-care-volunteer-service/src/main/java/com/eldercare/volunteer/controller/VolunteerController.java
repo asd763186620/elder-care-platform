@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -30,6 +31,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/volunteers")
+@Validated
 @Tag(name = "志愿者接口", description = "志愿者资料、可服务时间和可用志愿者查询")
 public class VolunteerController {
     /** 志愿者业务服务，封装资料、可用时间和可用志愿者查询逻辑。 */

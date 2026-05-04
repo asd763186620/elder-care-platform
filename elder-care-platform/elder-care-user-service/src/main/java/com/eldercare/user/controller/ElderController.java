@@ -9,6 +9,7 @@ import com.eldercare.user.service.UserAppService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/elders")
 @RequireRole(RoleConstants.ELDER)
+@Validated
 @Tag(name = "老人资料接口", description = "老人档案创建和维护")
 public class ElderController {
 

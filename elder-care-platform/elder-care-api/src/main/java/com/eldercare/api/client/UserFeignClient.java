@@ -2,6 +2,7 @@ package com.eldercare.api.client;
 
 import com.eldercare.common.constant.ServiceNames;
 import com.eldercare.common.response.Result;
+import com.eldercare.api.client.fallback.UserFeignFallbackFactory;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -10,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 /**
  * 用户服务 Feign 接口，供其他服务远程校验用户信息。
  */
-@FeignClient(name = ServiceNames.USER_SERVICE, contextId = "userFeignClient")
+@FeignClient(name = ServiceNames.USER_SERVICE, contextId = "userFeignClient", fallbackFactory = UserFeignFallbackFactory.class)
 public interface UserFeignClient {
 
     /**

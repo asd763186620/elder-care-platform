@@ -11,6 +11,8 @@ import com.eldercare.order.service.OrderAppService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,6 +23,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/orders")
+@Validated
 @Tag(name = "预约单接口", description = "发布订单、公共池、抢单、取消和完成")
 public class OrderController {
     /** 订单业务服务，封装下单、抢单、取消和完成等核心规则。 */
@@ -80,7 +83,7 @@ public class OrderController {
      */
     @GetMapping("/{orderId}")
     @Operation(summary = "订单详情", description = "按当前登录身份校验后返回订单基础信息和状态日志")
-    public Result<OrderDetailVO> detail(@PathVariable Long orderId) {
+    public Result<OrderDetailVO> detail(@PathVariable @Min(value = 1, message = "orderId必须大于0") Long orderId) {
         return Result.success(service.detail(orderId));
     }
 
@@ -127,7 +130,7 @@ public class OrderController {
     @RepeatSubmit(expireSeconds = 5)
     @RequireRole(RoleConstants.VOLUNTEER)
     @Operation(summary = "志愿者抢单", description = "使用 Redisson 锁和 MySQL 条件更新保证并发安全")
-    public Result<Void> grab(@PathVariable Long orderId) {
+    public Result<Void> grab(@PathVariable @Min(value = 1, message = "orderId必须大于0") Long orderId) {
         service.grab(orderId);
         return Result.success();
     }
@@ -143,7 +146,7 @@ public class OrderController {
     @RepeatSubmit(expireSeconds = 5)
     @RequireRole({RoleConstants.ELDER, RoleConstants.FAMILY})
     @Operation(summary = "取消订单", description = "老人或代发亲情号取消有权限操作的订单")
-    public Result<Void> cancel(@PathVariable Long orderId) {
+    public Result<Void> cancel(@PathVariable @Min(value = 1, message = "orderId必须大于0") Long orderId) {
         service.cancel(orderId);
         return Result.success();
     }
@@ -159,7 +162,7 @@ public class OrderController {
     @RepeatSubmit(expireSeconds = 5)
     @RequireRole(RoleConstants.VOLUNTEER)
     @Operation(summary = "完成订单", description = "实际接单志愿者完成订单")
-    public Result<Void> complete(@PathVariable Long orderId) {
+    public Result<Void> complete(@PathVariable @Min(value = 1, message = "orderId必须大于0") Long orderId) {
         service.complete(orderId);
         return Result.success();
     }
@@ -171,7 +174,7 @@ public class OrderController {
     @RepeatSubmit(expireSeconds = 5)
     @RequireRole(RoleConstants.VOLUNTEER)
     @Operation(summary = "开始服务", description = "接单志愿者将订单从 WAIT_SERVICE 更新为 IN_SERVICE")
-    public Result<Void> start(@PathVariable Long orderId) {
+    public Result<Void> start(@PathVariable @Min(value = 1, message = "orderId必须大于0") Long orderId) {
         service.start(orderId);
         return Result.success();
     }
@@ -183,7 +186,7 @@ public class OrderController {
     @RepeatSubmit(expireSeconds = 5)
     @RequireRole(RoleConstants.VOLUNTEER)
     @Operation(summary = "提交完成", description = "接单志愿者将订单从 IN_SERVICE 更新为 WAIT_CONFIRM")
-    public Result<Void> submitComplete(@PathVariable Long orderId) {
+    public Result<Void> submitComplete(@PathVariable @Min(value = 1, message = "orderId必须大于0") Long orderId) {
         service.submitComplete(orderId);
         return Result.success();
     }
@@ -195,7 +198,7 @@ public class OrderController {
     @RepeatSubmit(expireSeconds = 5)
     @RequireRole({RoleConstants.ELDER, RoleConstants.FAMILY})
     @Operation(summary = "确认完成", description = "老人本人或绑定亲情号确认订单完成")
-    public Result<Void> confirm(@PathVariable Long orderId) {
+    public Result<Void> confirm(@PathVariable @Min(value = 1, message = "orderId必须大于0") Long orderId) {
         service.confirm(orderId);
         return Result.success();
     }
@@ -207,7 +210,7 @@ public class OrderController {
     @RepeatSubmit(expireSeconds = 5)
     @RequireRole({RoleConstants.ELDER, RoleConstants.FAMILY})
     @Operation(summary = "评价订单", description = "订单完成后老人本人或绑定亲情号评价志愿者")
-    public Result<Void> evaluate(@PathVariable Long orderId, @Valid @RequestBody OrderEvaluateDTO dto) {
+    public Result<Void> evaluate(@PathVariable @Min(value = 1, message = "orderId必须大于0") Long orderId, @Valid @RequestBody OrderEvaluateDTO dto) {
         service.evaluate(orderId, dto);
         return Result.success();
     }

@@ -1,5 +1,6 @@
 package com.eldercare.api.client;
 
+import com.eldercare.api.client.fallback.VolunteerFeignFallbackFactory;
 import com.eldercare.api.dto.AvailableVolunteerQueryDTO;
 import com.eldercare.api.dto.VolunteerCheckAvailableDTO;
 import com.eldercare.api.dto.VolunteerLockTimeDTO;
@@ -15,7 +16,7 @@ import java.util.List;
 /**
  * 志愿者服务 Feign 接口，供订单服务查询可用志愿者。
  */
-@FeignClient(name = ServiceNames.VOLUNTEER_SERVICE, contextId = "volunteerFeignClient")
+@FeignClient(name = ServiceNames.VOLUNTEER_SERVICE, contextId = "volunteerFeignClient", fallbackFactory = VolunteerFeignFallbackFactory.class)
 public interface VolunteerFeignClient {
 
     /**

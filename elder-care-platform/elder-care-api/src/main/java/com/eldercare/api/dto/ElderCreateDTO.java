@@ -1,6 +1,9 @@
 package com.eldercare.api.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 
 /**
  * 新增老人资料请求 DTO。
@@ -18,18 +21,18 @@ public record ElderCreateDTO(
         // 老人已有账号时传 userId。
         Long userId,
         // 老人手机号，用于创建或关联账号。
-        String phone,
+        @Size(max = 32, message = "不能超过32个字符") String phone,
         // 老人姓名不能为空。
-        @NotBlank(message = "不能为空") String elderName,
+        @NotBlank(message = "不能为空") @Size(max = 64, message = "不能超过64个字符") String elderName,
         // 老人年龄。
-        Integer age,
+        @Min(value = 0, message = "不能小于0") @Max(value = 120, message = "不能大于120") Integer age,
         // 老人住址。
-        String address,
+        @Size(max = 255, message = "不能超过255个字符") String address,
         // 健康情况备注。
-        String healthNote,
+        @Size(max = 512, message = "不能超过512个字符") String healthNote,
         // 紧急联系人姓名。
-        String emergencyContactName,
+        @Size(max = 64, message = "不能超过64个字符") String emergencyContactName,
         // 紧急联系人手机号。
-        String emergencyContactPhone
+        @Size(max = 32, message = "不能超过32个字符") String emergencyContactPhone
 ) {
 }

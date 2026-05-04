@@ -9,6 +9,7 @@ import com.eldercare.user.service.UserAppService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,6 +24,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/family")
 @RequireRole(RoleConstants.FAMILY)
+@Validated
 @Tag(name = "亲情号接口", description = "亲情号绑定老人和查询绑定老人")
 public class FamilyController {
 

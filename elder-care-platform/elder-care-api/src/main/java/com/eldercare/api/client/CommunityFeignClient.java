@@ -1,5 +1,6 @@
 package com.eldercare.api.client;
 
+import com.eldercare.api.client.fallback.CommunityFeignFallbackFactory;
 import com.eldercare.common.constant.ServiceNames;
 import com.eldercare.common.response.Result;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -9,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 /**
  * 社区服务 Feign 接口，供订单服务校验服务项目归属。
  */
-@FeignClient(name = ServiceNames.COMMUNITY_SERVICE, contextId = "communityFeignClient")
+@FeignClient(name = ServiceNames.COMMUNITY_SERVICE, contextId = "communityFeignClient", fallbackFactory = CommunityFeignFallbackFactory.class)
 public interface CommunityFeignClient {
 
     /**
