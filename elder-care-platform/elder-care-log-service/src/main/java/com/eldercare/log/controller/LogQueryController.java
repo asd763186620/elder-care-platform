@@ -2,7 +2,7 @@ package com.eldercare.log.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.eldercare.common.annotation.RequireRole;
-import com.eldercare.common.constant.RoleConstants;
+import com.eldercare.common.enums.RoleEnum;
 import com.eldercare.common.response.Result;
 import com.eldercare.log.entity.ApiAccessLog;
 import com.eldercare.log.entity.OperationLog;
@@ -19,7 +19,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/logs")
-@RequireRole(RoleConstants.ADMIN)
+@RequireRole(RoleEnum.ADMIN)
 @Tag(name = "日志查询接口", description = "接口访问日志、慢接口日志和操作审计日志查询")
 public class LogQueryController {
     /** 日志查询服务。 */

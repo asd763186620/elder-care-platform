@@ -3,7 +3,7 @@ package com.eldercare.user.controller;
 import com.eldercare.api.dto.FamilyBindDTO;
 import com.eldercare.api.vo.ElderProfileVO;
 import com.eldercare.common.annotation.RequireRole;
-import com.eldercare.common.constant.RoleConstants;
+import com.eldercare.common.enums.RoleEnum;
 import com.eldercare.common.response.Result;
 import com.eldercare.user.service.UserAppService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,7 +23,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/family")
-@RequireRole(RoleConstants.FAMILY)
+@RequireRole(RoleEnum.FAMILY)
 @Validated
 @Tag(name = "亲情号接口", description = "亲情号绑定老人和查询绑定老人")
 public class FamilyController {

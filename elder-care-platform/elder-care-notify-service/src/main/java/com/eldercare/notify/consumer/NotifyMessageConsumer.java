@@ -2,7 +2,7 @@ package com.eldercare.notify.consumer;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.eldercare.api.dto.OrderEventDTO;
-import com.eldercare.common.constant.MqConstants;
+import com.eldercare.common.enums.MqEnum;
 import com.eldercare.notify.entity.NotifyRecord;
 import com.eldercare.notify.mapper.NotifyRecordMapper;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -29,7 +29,7 @@ public class NotifyMessageConsumer {
      *
      * @param event 订单事件。
      */
-    @RabbitListener(queues = MqConstants.ORDER_NOTIFY_QUEUE, containerFactory = "rabbitListenerContainerFactory")
+    @RabbitListener(queues = "#{T(com.eldercare.common.enums.MqEnum).ORDER_NOTIFY_QUEUE.code()}", containerFactory = "rabbitListenerContainerFactory")
     @Transactional(rollbackFor = Exception.class)
     public void consume(OrderEventDTO event) {
         // 先按 MQ 消息 ID 查询是否已消费，避免重复通知。

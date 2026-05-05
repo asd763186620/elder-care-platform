@@ -5,7 +5,7 @@ import com.eldercare.api.dto.ElderCreateDTO;
 import com.eldercare.api.dto.FamilyBindDTO;
 import com.eldercare.api.vo.ElderProfileVO;
 import com.eldercare.api.vo.UserInfoVO;
-import com.eldercare.common.constant.RoleConstants;
+import com.eldercare.common.enums.RoleEnum;
 import com.eldercare.common.context.UserContext;
 import com.eldercare.common.context.UserInfoDTO;
 import com.eldercare.common.exception.BizException;
@@ -17,6 +17,9 @@ import com.eldercare.user.entity.ElderProfile;
 import com.eldercare.user.entity.FamilyElderBind;
 import com.eldercare.user.entity.UserAccount;
 import com.eldercare.user.entity.UserRoleEntity;
+import com.eldercare.user.enums.UserAccountStatusEnum;
+import com.eldercare.user.enums.FamilyBindStatusEnum;
+import com.eldercare.user.enums.FamilyBindSourceEnum;
 import com.eldercare.user.mapper.ElderProfileMapper;
 import com.eldercare.user.mapper.FamilyElderBindMapper;
 import com.eldercare.user.mapper.UserAccountMapper;
@@ -29,7 +32,6 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * 用户服务业务实现。
@@ -37,12 +39,6 @@ import java.util.Set;
  */
 @Service
 public class UserAppServiceImpl implements UserAppService {
-    /** 正常状态。 */
-    private static final int STATUS_NORMAL = 1;
-    /** 已绑定状态。 */
-    private static final int BIND_STATUS_BOUND = 2;
-    /** 用户服务允许维护的角色集合。 */
-    private static final Set<String> ALLOWED_ROLES = Set.of(RoleConstants.ELDER, RoleConstants.FAMILY, RoleConstants.VOLUNTEER, RoleConstants.ADMIN);
     /** 用户账号 Mapper。 */
     private final UserAccountMapper userAccountMapper;
     /** 用户角色 Mapper。 */
@@ -102,7 +98,7 @@ public class UserAppServiceImpl implements UserAppService {
         // 解析或创建老人账号。
         UserAccount elderAccount = resolveElderAccount(userInfo.communityId(), createDTO);
         // 确保老人账号有 ELDER 角色。
-        ensureRole(userInfo.communityId(), elderAccount.getId(), RoleConstants.ELDER);
+        ensureRole(userInfo.communityId(), elderAccount.getId(), RoleEnum.ELDER.code());
         // 检查老人档案是否已存在。
         ElderProfile existed = selectElderProfile(userInfo.communityId(), elderAccount.getId());
         // 已存在时不允许重复创建。
@@ -131,7 +127,7 @@ public class UserAppServiceImpl implements UserAppService {
         // 设置紧急联系人手机号。
         elderProfile.setEmergencyContactPhone(createDTO.emergencyContactPhone());
         // 设置档案正常状态。
-        elderProfile.setProfileStatus(STATUS_NORMAL);
+        elderProfile.setProfileStatus(UserAccountStatusEnum.NORMAL.code());
         // 设置逻辑删除标记。
         elderProfile.setDeleted(0);
         // 插入老人档案。
@@ -151,7 +147,7 @@ public class UserAppServiceImpl implements UserAppService {
         // 从请求头读取当前亲情号用户。
         UserInfoDTO userInfo = loadRequiredUser();
         // 确保当前用户拥有亲情号角色。
-        ensureRole(userInfo.communityId(), userInfo.userId(), RoleConstants.FAMILY);
+        ensureRole(userInfo.communityId(), userInfo.userId(), RoleEnum.FAMILY.code());
         // 只能绑定同社区内已建档老人。
         ElderProfile elderProfile = selectElderProfile(userInfo.communityId(), bindDTO.elderUserId());
         // 老人不存在说明跨社区或未建档。
@@ -162,7 +158,7 @@ public class UserAppServiceImpl implements UserAppService {
         // 查询是否已有绑定关系。
         FamilyElderBind existed = selectFamilyBind(userInfo.communityId(), userInfo.userId(), bindDTO.elderUserId());
         // 已经绑定时直接报重复。
-        if (existed != null && Objects.equals(existed.getBindStatus(), BIND_STATUS_BOUND)) {
+        if (existed != null && Objects.equals(existed.getBindStatus(), FamilyBindStatusEnum.BOUND.code())) {
             // 抛出数据已存在异常。
             throw new BizException(ErrorCode.DATA_EXISTS, "亲情号已绑定该老人");
         }
@@ -177,9 +173,9 @@ public class UserAppServiceImpl implements UserAppService {
         // 设置关系，默认 OTHER。
         bind.setRelationship(StringUtils.hasText(bindDTO.relationship()) ? bindDTO.relationship() : "OTHER");
         // 第一版直接绑定成功。
-        bind.setBindStatus(BIND_STATUS_BOUND);
+        bind.setBindStatus(FamilyBindStatusEnum.BOUND.code());
         // 设置绑定来源。
-        bind.setBindSource("MINI_APP");
+        bind.setBindSource(FamilyBindSourceEnum.MINI_APP.code());
         // 设置确认时间。
         bind.setConfirmedAt(LocalDateTime.now());
         // 设置未删除。
@@ -205,7 +201,7 @@ public class UserAppServiceImpl implements UserAppService {
         List<FamilyElderBind> binds = familyElderBindMapper.selectList(new LambdaQueryWrapper<FamilyElderBind>()
                 .eq(FamilyElderBind::getCommunityId, userInfo.communityId())
                 .eq(FamilyElderBind::getFamilyUserId, userInfo.userId())
-                .eq(FamilyElderBind::getBindStatus, BIND_STATUS_BOUND)
+                .eq(FamilyElderBind::getBindStatus, FamilyBindStatusEnum.BOUND.code())
                 .eq(FamilyElderBind::getDeleted, 0));
         // 根据绑定关系查询老人档案。
         return binds.stream()
@@ -277,9 +273,9 @@ public class UserAppServiceImpl implements UserAppService {
         // 已存在角色直接返回。
         if (existed != null) {
             // 如果角色被禁用，恢复为正常。
-            if (!Objects.equals(existed.getRoleStatus(), STATUS_NORMAL)) {
+            if (!Objects.equals(existed.getRoleStatus(), UserAccountStatusEnum.NORMAL.code())) {
                 // 设置正常状态。
-                existed.setRoleStatus(STATUS_NORMAL);
+                existed.setRoleStatus(UserAccountStatusEnum.NORMAL.code());
                 // 更新角色。
                 userRoleMapper.updateById(existed);
             }
@@ -295,7 +291,7 @@ public class UserAppServiceImpl implements UserAppService {
         // 设置角色编码。
         role.setRoleCode(roleCode);
         // 设置正常状态。
-        role.setRoleStatus(STATUS_NORMAL);
+        role.setRoleStatus(UserAccountStatusEnum.NORMAL.code());
         // 设置未删除。
         role.setDeleted(0);
         // 插入角色。
@@ -322,7 +318,7 @@ public class UserAppServiceImpl implements UserAppService {
         return userRoleMapper.selectList(new LambdaQueryWrapper<UserRoleEntity>()
                         .eq(UserRoleEntity::getCommunityId, communityId)
                         .eq(UserRoleEntity::getUserId, userId)
-                        .eq(UserRoleEntity::getRoleStatus, STATUS_NORMAL)
+                        .eq(UserRoleEntity::getRoleStatus, UserAccountStatusEnum.NORMAL.code())
                         .eq(UserRoleEntity::getDeleted, 0))
                 .stream()
                 .map(UserRoleEntity::getRoleCode)
@@ -334,7 +330,7 @@ public class UserAppServiceImpl implements UserAppService {
      */
     private void checkRoleCode(String roleCode) {
         // 角色为空或不在允许集合时拒绝。
-        if (!StringUtils.hasText(roleCode) || !ALLOWED_ROLES.contains(roleCode)) {
+        if (!StringUtils.hasText(roleCode) || !RoleEnum.codes().contains(roleCode)) {
             // 抛出参数异常。
             throw new BizException(ErrorCode.PARAM_ERROR, "不支持的角色：" + roleCode);
         }
@@ -395,7 +391,7 @@ public class UserAppServiceImpl implements UserAppService {
         // 设置未知性别。
         newAccount.setGender(0);
         // 设置正常状态。
-        newAccount.setAccountStatus(STATUS_NORMAL);
+        newAccount.setAccountStatus(UserAccountStatusEnum.NORMAL.code());
         // 初始化刷新令牌版本，供 auth-service 后续使用。
         newAccount.setRefreshTokenVersion(0);
         // 设置未删除。
@@ -427,7 +423,7 @@ public class UserAppServiceImpl implements UserAppService {
                 .eq(FamilyElderBind::getCommunityId, communityId)
                 .eq(FamilyElderBind::getFamilyUserId, familyUserId)
                 .eq(FamilyElderBind::getElderUserId, elderUserId)
-                .eq(FamilyElderBind::getBindStatus, BIND_STATUS_BOUND)
+                .eq(FamilyElderBind::getBindStatus, FamilyBindStatusEnum.BOUND.code())
                 .eq(FamilyElderBind::getDeleted, 0)
                 .last("LIMIT 1"));
     }

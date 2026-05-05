@@ -1,6 +1,6 @@
 package com.eldercare.common.log.aspect;
 
-import com.eldercare.common.constant.HeaderConstants;
+import com.eldercare.common.enums.HeaderEnum;
 import com.eldercare.common.context.UserContext;
 import com.eldercare.common.context.UserInfoDTO;
 import com.eldercare.common.log.annotation.OperationLog;
@@ -214,7 +214,7 @@ public class OperationLogAspect {
             // 当前请求。
             HttpServletRequest request = attributes.getRequest();
             // 请求头中的 traceId。
-            String headerTraceId = request.getHeader(HeaderConstants.TRACE_ID);
+            String headerTraceId = request.getHeader(HeaderEnum.TRACE_ID.code());
             // 存在时返回。
             if (StringUtils.hasText(headerTraceId)) {
                 return headerTraceId;

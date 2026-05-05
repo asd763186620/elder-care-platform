@@ -1,6 +1,6 @@
 package com.eldercare.gateway.filter;
 
-import com.eldercare.common.constant.HeaderConstants;
+import com.eldercare.common.enums.HeaderEnum;
 import com.eldercare.common.context.LoginUser;
 import com.eldercare.common.jwt.JwtUtil;
 import org.springframework.core.io.buffer.DataBuffer;
@@ -96,21 +96,21 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             ServerHttpRequest request = exchange.getRequest().mutate()
                     .headers(headers -> {
                         // 先移除外部请求伪造的用户上下文请求头。
-                        headers.remove(HeaderConstants.USER_ID);
+                        headers.remove(HeaderEnum.USER_ID.code());
                         // 移除外部请求伪造的社区上下文请求头。
-                        headers.remove(HeaderConstants.COMMUNITY_ID);
+                        headers.remove(HeaderEnum.COMMUNITY_ID.code());
                         // 移除外部请求伪造的多角色请求头。
-                        headers.remove(HeaderConstants.ROLES);
+                        headers.remove(HeaderEnum.ROLES.code());
                         // 移除外部请求伪造的旧单角色请求头。
-                        headers.remove(HeaderConstants.USER_ROLE);
+                        headers.remove(HeaderEnum.USER_ROLE.code());
                         // 移除外部请求伪造的手机号请求头。
-                        headers.remove(HeaderConstants.USER_PHONE);
+                        headers.remove(HeaderEnum.USER_PHONE.code());
                     })
-                    .header(HeaderConstants.USER_ID, String.valueOf(loginUser.userId()))
-                    .header(HeaderConstants.COMMUNITY_ID, String.valueOf(loginUser.communityId()))
-                    .header(HeaderConstants.ROLES, roles)
-                    .header(HeaderConstants.USER_ROLE, loginUser.role() == null ? loginUser.roles().get(0) : loginUser.role().name())
-                    .header(HeaderConstants.USER_PHONE, loginUser.phone())
+                    .header(HeaderEnum.USER_ID.code(), String.valueOf(loginUser.userId()))
+                    .header(HeaderEnum.COMMUNITY_ID.code(), String.valueOf(loginUser.communityId()))
+                    .header(HeaderEnum.ROLES.code(), roles)
+                    .header(HeaderEnum.USER_ROLE.code(), loginUser.role() == null ? loginUser.roles().get(0) : loginUser.role().name())
+                    .header(HeaderEnum.USER_PHONE.code(), loginUser.phone())
                     .build();
             // 使用带用户头的新请求继续后续过滤器。
             return chain.filter(exchange.mutate().request(request).build());

@@ -1,6 +1,6 @@
 package com.eldercare.gateway.filter;
 
-import com.eldercare.common.constant.HeaderConstants;
+import com.eldercare.common.enums.HeaderEnum;
 import com.eldercare.common.context.LoginUser;
 import com.eldercare.common.jwt.JwtUtil;
 import com.eldercare.common.log.dto.ApiAccessLogMessage;
@@ -61,7 +61,7 @@ public class ApiAccessLogGlobalFilter implements GlobalFilter, Ordered {
         AtomicReference<String> errorRef = new AtomicReference<>();
         // 将 traceId 透传给下游业务服务。
         ServerHttpRequest requestWithTrace = exchange.getRequest().mutate()
-                .headers(headers -> headers.set(HeaderConstants.TRACE_ID, traceId))
+                .headers(headers -> headers.set(HeaderEnum.TRACE_ID.code(), traceId))
                 .build();
         // 使用带 traceId 的请求继续过滤器链。
         ServerWebExchange tracedExchange = exchange.mutate().request(requestWithTrace).build();
@@ -123,7 +123,7 @@ public class ApiAccessLogGlobalFilter implements GlobalFilter, Ordered {
     /** 获取 traceId。 */
     private String resolveTraceId(ServerWebExchange exchange) {
         // 先读取请求头。
-        String traceId = exchange.getRequest().getHeaders().getFirst(HeaderConstants.TRACE_ID);
+        String traceId = exchange.getRequest().getHeaders().getFirst(HeaderEnum.TRACE_ID.code());
         // 没有时生成新的。
         return StringUtils.hasText(traceId) ? traceId : TraceIdUtil.newTraceId();
     }
@@ -160,7 +160,7 @@ public class ApiAccessLogGlobalFilter implements GlobalFilter, Ordered {
     /** 从请求头或 Authorization 中解析用户 ID。 */
     private Long resolveUserId(ServerHttpRequest request, LoginUser loginUser) {
         // 优先读取后续过滤器透传的用户头。
-        Long headerUserId = parseLong(request.getHeaders().getFirst(HeaderConstants.USER_ID));
+        Long headerUserId = parseLong(request.getHeaders().getFirst(HeaderEnum.USER_ID.code()));
         // 请求头存在时直接返回。
         if (headerUserId != null) {
             return headerUserId;
@@ -172,13 +172,13 @@ public class ApiAccessLogGlobalFilter implements GlobalFilter, Ordered {
     /** 从请求头或 Authorization 中解析当前角色。 */
     private String resolveRoleType(ServerHttpRequest request, LoginUser loginUser) {
         // 优先读取单角色头。
-        String headerRole = request.getHeaders().getFirst(HeaderConstants.USER_ROLE);
+        String headerRole = request.getHeaders().getFirst(HeaderEnum.USER_ROLE.code());
         // 存在时返回。
         if (StringUtils.hasText(headerRole)) {
             return headerRole;
         }
         // 其次读取多角色头中的第一个角色。
-        String roles = request.getHeaders().getFirst(HeaderConstants.ROLES);
+        String roles = request.getHeaders().getFirst(HeaderEnum.ROLES.code());
         // 存在时拆分第一个。
         if (StringUtils.hasText(roles)) {
             return roles.split(",")[0].trim();
@@ -190,7 +190,7 @@ public class ApiAccessLogGlobalFilter implements GlobalFilter, Ordered {
     /** 从请求头或 Authorization 中解析社区 ID。 */
     private Long resolveCommunityId(ServerHttpRequest request, LoginUser loginUser) {
         // 优先读取请求头。
-        Long headerCommunityId = parseLong(request.getHeaders().getFirst(HeaderConstants.COMMUNITY_ID));
+        Long headerCommunityId = parseLong(request.getHeaders().getFirst(HeaderEnum.COMMUNITY_ID.code()));
         // 请求头存在时返回。
         if (headerCommunityId != null) {
             return headerCommunityId;

@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.Version;
+import com.eldercare.order.enums.OrderSourceEnum;
 
 import java.time.LocalDateTime;
 
@@ -109,7 +110,7 @@ public class ServiceOrder {
         order.serviceStartTime = serviceStartTime;
         order.serviceEndTime = serviceEndTime;
         order.remark = remark;
-        order.orderSource = "MINI_APP";
+        order.orderSource = OrderSourceEnum.MINI_APP.code();
         order.version = 0;
         order.deleted = 0;
         return order;

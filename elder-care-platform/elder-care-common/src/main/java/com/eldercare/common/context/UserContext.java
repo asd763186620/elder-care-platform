@@ -1,6 +1,7 @@
 package com.eldercare.common.context;
 
-import com.eldercare.common.constant.HeaderConstants;
+import com.eldercare.common.enums.HeaderEnum;
+import com.eldercare.common.enums.RoleEnum;
 import com.eldercare.common.exception.BizException;
 import com.eldercare.common.exception.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
@@ -106,6 +107,16 @@ public final class UserContext {
     }
 
     /**
+     * 判断当前用户是否拥有指定角色。
+     *
+     * @param role 角色枚举。
+     * @return true 表示拥有该角色。
+     */
+    public static boolean hasRole(RoleEnum role) {
+        return role != null && hasRole(role.code());
+    }
+
+    /**
      * 获取当前用户上下文，不存在时直接抛出未登录异常。
      *
      * @return 当前用户上下文。
@@ -164,13 +175,13 @@ public final class UserContext {
      */
     public static UserInfoDTO loadFromRequest(HttpServletRequest request) {
         // 读取用户 ID 请求头。
-        String userIdHeader = request.getHeader(HeaderConstants.USER_ID);
+        String userIdHeader = request.getHeader(HeaderEnum.USER_ID.code());
         // 读取社区 ID 请求头。
-        String communityIdHeader = request.getHeader(HeaderConstants.COMMUNITY_ID);
+        String communityIdHeader = request.getHeader(HeaderEnum.COMMUNITY_ID.code());
         // 优先读取多角色请求头。
-        String rolesHeader = request.getHeader(HeaderConstants.ROLES);
+        String rolesHeader = request.getHeader(HeaderEnum.ROLES.code());
         // 兼容旧的单角色请求头。
-        String userRoleHeader = request.getHeader(HeaderConstants.USER_ROLE);
+        String userRoleHeader = request.getHeader(HeaderEnum.USER_ROLE.code());
         // 用户 ID 为空时说明当前请求没有登录用户上下文。
         if (!StringUtils.hasText(userIdHeader)) {
             // 不写入 ThreadLocal。

@@ -11,7 +11,7 @@ import com.eldercare.api.vo.VolunteerCheckinTodayVO;
 import com.eldercare.api.vo.VolunteerWorkbenchVO;
 import com.eldercare.common.annotation.RepeatSubmit;
 import com.eldercare.common.annotation.RequireRole;
-import com.eldercare.common.constant.RoleConstants;
+import com.eldercare.common.enums.RoleEnum;
 import com.eldercare.common.response.Result;
 import com.eldercare.volunteer.service.VolunteerAppService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -53,7 +53,7 @@ public class VolunteerController {
      * @return 空结果，成功时 code 为 0。
      */
     @PostMapping("/profile")
-    @RequireRole(RoleConstants.VOLUNTEER)
+    @RequireRole(RoleEnum.VOLUNTEER)
     @Operation(summary = "完善志愿者资料", description = "当前志愿者新增或更新自己的资料")
     public Result<Void> profile(@Valid @RequestBody VolunteerProfileDTO dto) {
         service.saveProfile(dto);
@@ -67,7 +67,7 @@ public class VolunteerController {
      * @return 空结果，成功时 code 为 0。
      */
     @PostMapping("/available-times")
-    @RequireRole(RoleConstants.VOLUNTEER)
+    @RequireRole(RoleEnum.VOLUNTEER)
     @Operation(summary = "设置可服务时间", description = "志愿者设置某服务项目的可服务时间段")
     public Result<Void> availableTimes(@Valid @RequestBody VolunteerAvailableTimeDTO dto) {
         service.addAvailableTime(dto);
@@ -83,7 +83,7 @@ public class VolunteerController {
      * @return 可用志愿者简要信息列表。
      */
     @GetMapping("/available")
-    @RequireRole({RoleConstants.ELDER, RoleConstants.FAMILY})
+    @RequireRole({RoleEnum.ELDER, RoleEnum.FAMILY})
     @Operation(summary = "查询可用志愿者", description = "按服务项目和时间段查询本社区可用志愿者")
     public Result<List<VolunteerBriefVO>> available(@RequestParam Long serviceItemId,
                                                     @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
@@ -96,7 +96,7 @@ public class VolunteerController {
      */
     @PostMapping("/check-in")
     @RepeatSubmit(expireSeconds = 5)
-    @RequireRole(RoleConstants.VOLUNTEER)
+    @RequireRole(RoleEnum.VOLUNTEER)
     @Operation(summary = "志愿者签到", description = "同一志愿者同一天只能签到一次，使用唯一索引防重")
     public Result<Void> checkIn(@Valid @RequestBody VolunteerCheckinDTO dto) {
         service.checkIn(dto);
@@ -107,7 +107,7 @@ public class VolunteerController {
      * 今日签到状态。
      */
     @GetMapping("/check-in/today")
-    @RequireRole(RoleConstants.VOLUNTEER)
+    @RequireRole(RoleEnum.VOLUNTEER)
     @Operation(summary = "今日签到状态", description = "查询当前志愿者今天是否已签到")
     public Result<VolunteerCheckinTodayVO> todayCheckin() {
         return Result.success(service.todayCheckin());
@@ -117,7 +117,7 @@ public class VolunteerController {
      * 签到记录分页。
      */
     @GetMapping("/check-in/page")
-    @RequireRole(RoleConstants.VOLUNTEER)
+    @RequireRole(RoleEnum.VOLUNTEER)
     @Operation(summary = "签到记录分页", description = "游标分页查询当前志愿者自己的签到记录")
     public Result<CursorPageVO<VolunteerCheckinRecordVO>> checkinPage(@RequestParam(required = false) Long lastId,
                                                                       @RequestParam(required = false) Integer size,
@@ -130,7 +130,7 @@ public class VolunteerController {
      * 志愿者工作台。
      */
     @GetMapping("/workbench")
-    @RequireRole(RoleConstants.VOLUNTEER)
+    @RequireRole(RoleEnum.VOLUNTEER)
     @Operation(summary = "志愿者工作台", description = "返回签到状态、接单状态和基础工作台统计")
     public Result<VolunteerWorkbenchVO> workbench() {
         return Result.success(service.workbench());

@@ -7,6 +7,7 @@ import com.eldercare.common.context.UserContext;
 import com.eldercare.common.exception.BizException;
 import com.eldercare.common.exception.ErrorCode;
 import com.eldercare.community.entity.Community;
+import com.eldercare.community.enums.CommunityStatusEnum;
 import com.eldercare.community.entity.ServiceItem;
 import com.eldercare.community.mapper.CommunityMapper;
 import com.eldercare.community.mapper.ServiceItemMapper;
@@ -20,11 +21,6 @@ import java.util.List;
  */
 @Service
 public class CommunityAppServiceImpl implements CommunityAppService {
-
-    /**
-     * 正常状态。
-     */
-    private static final int STATUS_NORMAL = 1;
 
     /**
      * 社区 Mapper。
@@ -77,7 +73,7 @@ public class CommunityAppServiceImpl implements CommunityAppService {
         // 查询当前社区下启用的服务项目。
         return serviceItemMapper.selectList(new LambdaQueryWrapper<ServiceItem>()
                         .eq(ServiceItem::getCommunityId, communityId)
-                        .eq(ServiceItem::getItemStatus, STATUS_NORMAL)
+                        .eq(ServiceItem::getItemStatus, CommunityStatusEnum.NORMAL.code())
                         .eq(ServiceItem::getDeleted, 0)
                         .orderByAsc(ServiceItem::getId))
                 .stream()
@@ -136,7 +132,7 @@ public class CommunityAppServiceImpl implements CommunityAppService {
         // 使用 community_id 查询并限制正常状态。
         return communityMapper.selectOne(new LambdaQueryWrapper<Community>()
                 .eq(Community::getCommunityId, communityId)
-                .eq(Community::getCommunityStatus, STATUS_NORMAL)
+                .eq(Community::getCommunityStatus, CommunityStatusEnum.NORMAL.code())
                 .eq(Community::getDeleted, 0)
                 .last("LIMIT 1"));
     }
@@ -149,7 +145,7 @@ public class CommunityAppServiceImpl implements CommunityAppService {
         return serviceItemMapper.selectOne(new LambdaQueryWrapper<ServiceItem>()
                 .eq(ServiceItem::getCommunityId, communityId)
                 .eq(ServiceItem::getId, serviceItemId)
-                .eq(ServiceItem::getItemStatus, STATUS_NORMAL)
+                .eq(ServiceItem::getItemStatus, CommunityStatusEnum.NORMAL.code())
                 .eq(ServiceItem::getDeleted, 0)
                 .last("LIMIT 1"));
     }

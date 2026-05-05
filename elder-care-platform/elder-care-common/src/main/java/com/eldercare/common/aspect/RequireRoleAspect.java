@@ -53,7 +53,7 @@ public class RequireRoleAspect {
             throw new BizException(ErrorCode.UNAUTHORIZED);
         }
         // 判断当前用户是否拥有允许角色中的任意一个。
-        boolean matched = Arrays.stream(requireRole.value()).anyMatch(userInfo::hasRole);
+        boolean matched = Arrays.stream(requireRole.value()).map(role -> role.code()).anyMatch(userInfo::hasRole);
         // 不匹配时返回无权限。
         if (!matched) {
             // 抛出 403 异常。

@@ -3,7 +3,7 @@ package com.eldercare.volunteer.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.eldercare.common.annotation.RequireRole;
-import com.eldercare.common.constant.RoleConstants;
+import com.eldercare.common.enums.RoleEnum;
 import com.eldercare.common.context.UserContext;
 import com.eldercare.common.response.Result;
 import com.eldercare.volunteer.entity.VolunteerProfile;
@@ -18,7 +18,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/admin/volunteers")
-@RequireRole(RoleConstants.ADMIN)
+@RequireRole(RoleEnum.ADMIN)
 public class VolunteerAdminController {
     /** 志愿者档案 Mapper。 */
     private final VolunteerProfileMapper profileMapper;

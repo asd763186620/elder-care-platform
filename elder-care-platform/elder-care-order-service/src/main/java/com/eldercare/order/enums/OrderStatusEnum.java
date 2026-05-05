@@ -12,23 +12,28 @@ import java.util.Set;
  */
 public enum OrderStatusEnum {
     /** 待分配，生产语义下的公共池待抢单状态。 */
-    PENDING_ASSIGN,
+    PENDING_ASSIGN("PENDING_ASSIGN", "待分配"),
     /** 已分配，生产语义下已指定或已抢单成功状态。 */
-    ASSIGNED,
+    ASSIGNED("ASSIGNED", "已分配"),
     /** 待抢单，公共池订单等待志愿者抢单。 */
-    WAIT_GRAB,
+    WAIT_GRAB("WAIT_GRAB", "待抢单"),
     /** 待服务，已经指定志愿者或抢单成功。 */
-    WAIT_SERVICE,
+    WAIT_SERVICE("WAIT_SERVICE", "待服务"),
     /** 服务中，志愿者已经点击开始服务。 */
-    IN_SERVICE,
+    IN_SERVICE("IN_SERVICE", "服务中"),
     /** 待确认，志愿者提交完成，等待老人或亲情号确认。 */
-    WAIT_CONFIRM,
+    WAIT_CONFIRM("WAIT_CONFIRM", "待确认"),
     /** 已完成，老人或亲情号已确认。 */
-    COMPLETED,
+    COMPLETED("COMPLETED", "已完成"),
     /** 已取消，用户主动取消。 */
-    CANCELLED,
+    CANCELLED("CANCELLED", "已取消"),
     /** 超时关闭，系统自动关闭。 */
-    TIMEOUT_CLOSED;
+    TIMEOUT_CLOSED("TIMEOUT_CLOSED", "超时关闭");
+
+    /** 数据库存储编码。 */
+    private final String code;
+    /** 状态说明，便于日志、Swagger 和面试讲解。 */
+    private final String message;
 
     /**
      * 合法状态流转表。
@@ -51,8 +56,23 @@ public enum OrderStatusEnum {
      * @return 状态编码。
      */
     public String code() {
-        // 当前枚举名就是数据库状态编码。
-        return name();
+        // 返回数据库状态编码。
+        return code;
+    }
+
+    /**
+     * 状态说明。
+     */
+    public String message() {
+        // 返回状态中文说明。
+        return message;
+    }
+
+    OrderStatusEnum(String code, String message) {
+        // 保存数据库编码。
+        this.code = code;
+        // 保存展示说明。
+        this.message = message;
     }
 
     /**

@@ -1,5 +1,7 @@
 package com.eldercare.common.annotation;
 
+import com.eldercare.common.enums.RoleEnum;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -14,10 +16,10 @@ import java.lang.annotation.Target;
 public @interface RequireRole {
 
     /**
-     * 允许访问的角色编码。
-     * 说明：支持 ELDER、FAMILY、VOLUNTEER；满足其中任意一个角色即可访问。
+     * 允许访问的角色。
+     * 说明：满足其中任意一个角色即可访问。
      *
      * @return 允许访问的角色列表。
      */
-    String[] value();
+    RoleEnum[] value();
 }

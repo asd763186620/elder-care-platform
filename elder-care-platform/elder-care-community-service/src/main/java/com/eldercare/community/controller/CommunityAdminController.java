@@ -3,7 +3,7 @@ package com.eldercare.community.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.eldercare.common.annotation.RequireRole;
-import com.eldercare.common.constant.RoleConstants;
+import com.eldercare.common.enums.RoleEnum;
 import com.eldercare.common.context.UserContext;
 import com.eldercare.common.response.Result;
 import com.eldercare.community.entity.Community;
@@ -19,7 +19,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/admin/community")
-@RequireRole(RoleConstants.ADMIN)
+@RequireRole(RoleEnum.ADMIN)
 public class CommunityAdminController {
     /** 社区 Mapper。 */
     private final CommunityMapper communityMapper;

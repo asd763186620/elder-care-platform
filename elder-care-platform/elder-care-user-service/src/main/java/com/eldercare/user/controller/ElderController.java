@@ -3,7 +3,7 @@ package com.eldercare.user.controller;
 import com.eldercare.api.dto.ElderCreateDTO;
 import com.eldercare.api.vo.ElderProfileVO;
 import com.eldercare.common.annotation.RequireRole;
-import com.eldercare.common.constant.RoleConstants;
+import com.eldercare.common.enums.RoleEnum;
 import com.eldercare.common.response.Result;
 import com.eldercare.user.service.UserAppService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/elders")
-@RequireRole(RoleConstants.ELDER)
+@RequireRole(RoleEnum.ELDER)
 @Validated
 @Tag(name = "老人资料接口", description = "老人档案创建和维护")
 public class ElderController {

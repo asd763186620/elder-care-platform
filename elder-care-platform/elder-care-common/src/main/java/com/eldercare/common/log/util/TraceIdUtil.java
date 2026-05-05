@@ -1,6 +1,6 @@
 package com.eldercare.common.log.util;
 
-import com.eldercare.common.constant.HeaderConstants;
+import com.eldercare.common.enums.HeaderEnum;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.MDC;
 import org.springframework.util.StringUtils;
@@ -46,6 +46,6 @@ public final class TraceIdUtil {
         // 读取请求头。
         HttpServletRequest request = attributes.getRequest();
         // 返回请求头 traceId 或新 traceId。
-        return StringUtils.hasText(request.getHeader(HeaderConstants.TRACE_ID)) ? request.getHeader(HeaderConstants.TRACE_ID) : newTraceId();
+        return StringUtils.hasText(request.getHeader(HeaderEnum.TRACE_ID.code())) ? request.getHeader(HeaderEnum.TRACE_ID.code()) : newTraceId();
     }
 }

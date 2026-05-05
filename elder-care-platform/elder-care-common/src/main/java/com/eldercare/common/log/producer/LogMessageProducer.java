@@ -1,6 +1,6 @@
 package com.eldercare.common.log.producer;
 
-import com.eldercare.common.constant.MqConstants;
+import com.eldercare.common.enums.MqEnum;
 import com.eldercare.common.log.dto.ApiAccessLogMessage;
 import com.eldercare.common.log.dto.OperationLogMessage;
 import org.slf4j.Logger;
@@ -42,7 +42,7 @@ public class LogMessageProducer {
                 return;
             }
             // 发送到日志交换机。
-            rabbitTemplate.convertAndSend(MqConstants.LOG_EXCHANGE, MqConstants.API_ACCESS_LOG_ROUTING_KEY, message);
+            rabbitTemplate.convertAndSend(MqEnum.LOG_EXCHANGE.code(), MqEnum.API_ACCESS_LOG_ROUTING_KEY.code(), message);
         } catch (Exception exception) {
             // 日志发送失败不能影响主流程。
             log.error("send api access log failed, traceId={}", message == null ? null : message.traceId(), exception);
@@ -64,7 +64,7 @@ public class LogMessageProducer {
                 return;
             }
             // 发送到日志交换机。
-            rabbitTemplate.convertAndSend(MqConstants.LOG_EXCHANGE, MqConstants.OPERATION_LOG_ROUTING_KEY, message);
+            rabbitTemplate.convertAndSend(MqEnum.LOG_EXCHANGE.code(), MqEnum.OPERATION_LOG_ROUTING_KEY.code(), message);
         } catch (Exception exception) {
             // 日志发送失败不能影响主流程。
             log.error("send operation log failed, traceId={}", message == null ? null : message.traceId(), exception);

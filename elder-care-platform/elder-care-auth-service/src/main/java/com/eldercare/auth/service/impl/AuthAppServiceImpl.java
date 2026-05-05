@@ -12,6 +12,7 @@ import com.eldercare.api.vo.VolunteerBriefVO;
 import com.eldercare.auth.entity.ElderProfile;
 import com.eldercare.auth.entity.UserAccount;
 import com.eldercare.auth.entity.UserRoleEntity;
+import com.eldercare.auth.enums.AuthStatusEnum;
 import com.eldercare.auth.mapper.ElderProfileMapper;
 import com.eldercare.auth.mapper.UserAccountMapper;
 import com.eldercare.auth.mapper.UserRoleMapper;
@@ -20,7 +21,7 @@ import com.eldercare.auth.wechat.WechatCode2SessionClient;
 import com.eldercare.auth.wechat.WechatPhoneNumber;
 import com.eldercare.auth.wechat.WechatPhoneNumberClient;
 import com.eldercare.auth.wechat.WechatSession;
-import com.eldercare.common.constant.RoleConstants;
+import com.eldercare.common.enums.RoleEnum;
 import com.eldercare.common.context.LoginUser;
 import com.eldercare.common.context.UserContext;
 import com.eldercare.common.context.UserInfoDTO;
@@ -39,7 +40,6 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -47,14 +47,6 @@ import java.util.UUID;
  */
 @Service
 public class AuthAppServiceImpl implements AuthAppService {
-    /** 默认演示社区。 */
-    private static final Long DEFAULT_COMMUNITY_ID = 1L;
-    /** 正常状态。 */
-    private static final int STATUS_NORMAL = 1;
-    /** 禁用状态。 */
-    private static final int STATUS_DISABLED = 2;
-    /** 允许登录的角色集合。 */
-    private static final Set<String> ALLOWED_ROLES = Set.of(RoleConstants.ELDER, RoleConstants.FAMILY, RoleConstants.VOLUNTEER, RoleConstants.ADMIN);
     /** 用户账号 Mapper。 */
     private final UserAccountMapper userAccountMapper;
     /** 用户角色 Mapper。 */
@@ -99,7 +91,7 @@ public class AuthAppServiceImpl implements AuthAppService {
             description = "微信小程序登录", recordResult = false)
     public LoginVO wxLogin(MiniAppLoginDTO loginDTO) {
         // 社区 ID 不传时使用演示社区。
-        Long communityId = loginDTO.communityId() == null ? DEFAULT_COMMUNITY_ID : loginDTO.communityId();
+        Long communityId = loginDTO.communityId() == null ? AuthStatusEnum.DEFAULT_COMMUNITY.longCode() : loginDTO.communityId();
         // 调用微信 code2session 获取 openId。
         WechatSession session = wechatCode2SessionClient.code2Session(loginDTO.code());
         // 按 openId 查询账号。
@@ -124,7 +116,7 @@ public class AuthAppServiceImpl implements AuthAppService {
             // 未知性别。
             account.setGender(0);
             // 正常状态。
-            account.setAccountStatus(STATUS_NORMAL);
+            account.setAccountStatus(AuthStatusEnum.ACCOUNT_NORMAL.code());
             // 初始刷新版本。
             account.setRefreshTokenVersion(0);
             // 未删除。
@@ -324,7 +316,7 @@ public class AuthAppServiceImpl implements AuthAppService {
         // 查询老人档案。
         ElderProfile elderProfile = selectElderProfile(user.communityId(), user.userId());
         // 志愿者摘要。
-        VolunteerBriefVO volunteer = roles.contains(RoleConstants.VOLUNTEER) ? new VolunteerBriefVO(user.userId(), account.getNickname(), account.getAvatarUrl()) : null;
+        VolunteerBriefVO volunteer = roles.contains(RoleEnum.VOLUNTEER.code()) ? new VolunteerBriefVO(user.userId(), account.getNickname(), account.getAvatarUrl()) : null;
         // 返回当前认证用户。
         return new AuthCurrentVO(account.getId(), account.getNickname(), account.getPhone(), account.getAvatarUrl(),
                 StringUtils.hasText(account.getCurrentRole()) ? account.getCurrentRole() : (roles.isEmpty() ? null : roles.get(0)),
@@ -383,9 +375,9 @@ public class AuthAppServiceImpl implements AuthAppService {
         // 已存在时确保启用。
         if (existed != null) {
             // 状态非正常时恢复。
-            if (!Objects.equals(existed.getRoleStatus(), STATUS_NORMAL)) {
+            if (!Objects.equals(existed.getRoleStatus(), AuthStatusEnum.ACCOUNT_NORMAL.code())) {
                 // 设置正常状态。
-                existed.setRoleStatus(STATUS_NORMAL);
+                existed.setRoleStatus(AuthStatusEnum.ACCOUNT_NORMAL.code());
                 // 更新角色。
                 userRoleMapper.updateById(existed);
             }
@@ -401,7 +393,7 @@ public class AuthAppServiceImpl implements AuthAppService {
         // 写入角色。
         role.setRoleCode(normalizedRole);
         // 正常状态。
-        role.setRoleStatus(STATUS_NORMAL);
+        role.setRoleStatus(AuthStatusEnum.ACCOUNT_NORMAL.code());
         // 未删除。
         role.setDeleted(0);
         // 插入角色。
@@ -424,7 +416,7 @@ public class AuthAppServiceImpl implements AuthAppService {
         return userRoleMapper.selectList(new LambdaQueryWrapper<UserRoleEntity>()
                         .eq(UserRoleEntity::getCommunityId, communityId)
                         .eq(UserRoleEntity::getUserId, userId)
-                        .eq(UserRoleEntity::getRoleStatus, STATUS_NORMAL)
+                        .eq(UserRoleEntity::getRoleStatus, AuthStatusEnum.ACCOUNT_NORMAL.code())
                         .eq(UserRoleEntity::getDeleted, 0))
                 .stream()
                 .map(UserRoleEntity::getRoleCode)
@@ -470,7 +462,7 @@ public class AuthAppServiceImpl implements AuthAppService {
     /** 账号是否启用。 */
     private void ensureAccountEnabled(UserAccount account) {
         // 禁用账号不能登录。
-        if (account == null || Objects.equals(account.getAccountStatus(), STATUS_DISABLED)) {
+        if (account == null || Objects.equals(account.getAccountStatus(), AuthStatusEnum.ACCOUNT_DISABLED.code())) {
             // 抛出禁用异常。
             throw new BizException(ErrorCode.FORBIDDEN, "账号已被禁用");
         }
@@ -515,12 +507,12 @@ public class AuthAppServiceImpl implements AuthAppService {
         // 未传时默认老人。
         if (roles == null || roles.isEmpty()) {
             // 返回默认角色。
-            return List.of(RoleConstants.ELDER);
+            return List.of(RoleEnum.ELDER.code());
         }
         // 过滤空白并去重。
         List<String> cleaned = roles.stream().filter(StringUtils::hasText).map(this::normalizeRole).distinct().toList();
         // 清理后为空时默认老人。
-        return cleaned.isEmpty() ? List.of(RoleConstants.ELDER) : cleaned;
+        return cleaned.isEmpty() ? List.of(RoleEnum.ELDER.code()) : cleaned;
     }
 
     /** 规范化单个角色。 */
@@ -533,7 +525,7 @@ public class AuthAppServiceImpl implements AuthAppService {
         // 转成大写。
         String normalized = roleCode.trim().toUpperCase();
         // 校验是否允许。
-        if (!ALLOWED_ROLES.contains(normalized)) {
+        if (!RoleEnum.codes().contains(normalized)) {
             // 抛出参数异常。
             throw new BizException(ErrorCode.PARAM_ERROR, "不支持的角色：" + roleCode);
         }

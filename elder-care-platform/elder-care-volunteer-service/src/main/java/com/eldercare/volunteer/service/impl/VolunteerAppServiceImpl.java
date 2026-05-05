@@ -10,6 +10,7 @@ import com.eldercare.api.vo.VolunteerBriefVO;
 import com.eldercare.api.vo.VolunteerWorkbenchVO;
 import com.eldercare.common.context.UserContext;
 import com.eldercare.common.context.UserInfoDTO;
+import com.eldercare.common.enums.RedisKeyEnum;
 import com.eldercare.common.exception.BizException;
 import com.eldercare.common.exception.ErrorCode;
 import com.eldercare.common.log.annotation.OperationLog;
@@ -19,6 +20,7 @@ import com.eldercare.volunteer.entity.VolunteerAvailableTime;
 import com.eldercare.volunteer.entity.VolunteerCheckinRecord;
 import com.eldercare.volunteer.entity.VolunteerProfile;
 import com.eldercare.volunteer.entity.VolunteerTimeLock;
+import com.eldercare.volunteer.enums.VolunteerStatusEnum;
 import com.eldercare.volunteer.mapper.VolunteerAvailableTimeMapper;
 import com.eldercare.volunteer.mapper.VolunteerCheckinRecordMapper;
 import com.eldercare.volunteer.mapper.VolunteerProfileMapper;
@@ -42,26 +44,6 @@ import java.util.function.Function;
  */
 @Service
 public class VolunteerAppServiceImpl implements VolunteerAppService {
-    /**
-     * 志愿者档案正常状态，表中 2 表示审核通过/可服务。
-     */
-    private static final int NORMAL = 2;
-
-    /**
-     * 可服务时间可用状态。
-     */
-    private static final int AVAILABLE = 1;
-
-    /**
-     * 时间锁已锁定状态。
-     */
-    private static final int LOCKED = 1;
-
-    /**
-     * 时间锁已释放状态。
-     */
-    private static final int RELEASED = 2;
-
     /**
      * 志愿者档案 Mapper。
      */
@@ -115,7 +97,7 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
             profile = VolunteerProfile.create(user.communityId(), user.userId());
         }
         // 通过实体行为刷新档案字段，让资料状态变更规则集中在实体内部。
-        profile.updateProfile(dto.volunteerName(), dto.volunteerPhone(), dto.skillTags(), dto.serviceRadiusMeter(), NORMAL);
+        profile.updateProfile(dto.volunteerName(), dto.volunteerPhone(), dto.skillTags(), dto.serviceRadiusMeter(), VolunteerStatusEnum.PROFILE_NORMAL.code());
         // 新档案执行插入。
         if (profile.getId() == null) {
             // 插入志愿者档案。
@@ -133,7 +115,7 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
         // 读取当前志愿者上下文。
         UserInfoDTO user = currentUser();
         // 通过实体工厂创建可服务时间，避免 Service 直接拼装表字段。
-        VolunteerAvailableTime time = VolunteerAvailableTime.create(user.communityId(), user.userId(), dto.serviceItemId(), dto.startTime(), dto.endTime(), AVAILABLE);
+        VolunteerAvailableTime time = VolunteerAvailableTime.create(user.communityId(), user.userId(), dto.serviceItemId(), dto.startTime(), dto.endTime(), VolunteerStatusEnum.AVAILABLE_TIME.code());
         // 插入可服务时间。
         availableMapper.insert(time);
     }
@@ -154,7 +136,7 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
                 // 限定本社区。
                 .eq("community_id", queryCommunityId)
                 // 只看可用状态。
-                .eq("available_status", AVAILABLE)
+                .eq("available_status", VolunteerStatusEnum.AVAILABLE_TIME.code())
                 // 排除逻辑删除。
                 .eq("deleted", 0)
                 // 志愿者可服务开始时间必须早于等于订单开始时间。
@@ -180,7 +162,7 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
                 // 必须是目标志愿者。
                 .eq("volunteer_user_id", dto.volunteerUserId())
                 // 必须是可用时间段。
-                .eq("available_status", AVAILABLE)
+                .eq("available_status", VolunteerStatusEnum.AVAILABLE_TIME.code())
                 // 排除逻辑删除。
                 .eq("deleted", 0)
                 // 可服务开始时间覆盖订单开始时间。
@@ -196,7 +178,7 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
                 // 同志愿者才比较。
                 .eq("volunteer_user_id", dto.volunteerUserId())
                 // 只看活跃锁。
-                .eq("lock_status", LOCKED)
+                .eq("lock_status", VolunteerStatusEnum.TIME_LOCKED.code())
                 // 排除逻辑删除。
                 .eq("deleted", 0)
                 // 区间重叠判断：已有开始 < 新结束。
@@ -211,7 +193,7 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
     @Transactional(rollbackFor = Exception.class)
     public boolean lockTime(VolunteerLockTimeDTO dto) {
         // Redisson 锁 key 按社区、志愿者、时间槽拆分，降低锁粒度。
-        RLock lock = redissonClient.getLock("lock:volunteer:time:" + dto.communityId() + ":" + dto.volunteerUserId() + ":" + slotKey(dto));
+        RLock lock = redissonClient.getLock(RedisKeyEnum.VOLUNTEER_TIME_LOCK.code() + dto.communityId() + ":" + dto.volunteerUserId() + ":" + slotKey(dto));
         try {
             // 最多等待 5 秒，锁自动过期 10 秒，避免服务异常导致死锁。
             if (!lock.tryLock(5, 10, TimeUnit.SECONDS)) {
@@ -224,7 +206,7 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
                 return false;
             }
             // 通过实体工厂创建时间锁，锁状态和唯一时间槽的初始化集中在实体内。
-            VolunteerTimeLock row = VolunteerTimeLock.locked(dto.communityId(), dto.volunteerUserId(), dto.orderId(), dto.startTime(), dto.endTime(), slotKey(dto), LOCKED);
+            VolunteerTimeLock row = VolunteerTimeLock.locked(dto.communityId(), dto.volunteerUserId(), dto.orderId(), dto.startTime(), dto.endTime(), slotKey(dto), VolunteerStatusEnum.TIME_LOCKED.code());
             // 插入时间锁，若唯一索引冲突会抛 DuplicateKeyException。
             lockMapper.insert(row);
             // 插入成功表示锁定成功。
@@ -251,7 +233,7 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
         // 按订单和志愿者释放活跃时间锁。
         return lockMapper.update(null, new UpdateWrapper<VolunteerTimeLock>()
                 // 将锁状态改为已释放。
-                .set("lock_status", RELEASED)
+                .set("lock_status", VolunteerStatusEnum.TIME_RELEASED.code())
                 // 限定社区。
                 .eq("community_id", dto.communityId())
                 // 限定订单。
@@ -259,7 +241,7 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
                 // 限定志愿者。
                 .eq("volunteer_user_id", dto.volunteerUserId())
                 // 只释放已锁定记录。
-                .eq("lock_status", LOCKED)) > 0;
+                .eq("lock_status", VolunteerStatusEnum.TIME_LOCKED.code())) > 0;
     }
 
     @Override
@@ -336,7 +318,7 @@ public class VolunteerAppServiceImpl implements VolunteerAppService {
         // 评分第一版用 0 占位，评价聚合由 order-service 提供。
         Integer score = 0;
         // 有正常资料且已签到时表示可以接单。
-        String acceptStatus = profile != null && checkedIn ? "AVAILABLE" : "UNAVAILABLE";
+        String acceptStatus = profile != null && checkedIn ? "VolunteerStatusEnum.AVAILABLE_TIME.code()" : "UNAVAILABLE";
         // 返回工作台数据。
         return new VolunteerWorkbenchVO(checkedIn, 0, 0, 0, 0, score, acceptStatus);
     }

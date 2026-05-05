@@ -3,7 +3,7 @@ package com.eldercare.order.controller;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.eldercare.api.vo.OrderVO;
 import com.eldercare.common.annotation.RequireRole;
-import com.eldercare.common.constant.RoleConstants;
+import com.eldercare.common.enums.RoleEnum;
 import com.eldercare.common.context.UserContext;
 import com.eldercare.common.response.Result;
 import com.eldercare.order.entity.ServiceOrder;
@@ -19,7 +19,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/admin/orders")
-@RequireRole(RoleConstants.ADMIN)
+@RequireRole(RoleEnum.ADMIN)
 public class OrderAdminController {
     /** 订单 Mapper。 */
     private final ServiceOrderMapper orderMapper;

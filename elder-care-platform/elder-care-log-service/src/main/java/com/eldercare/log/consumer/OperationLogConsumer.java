@@ -1,6 +1,6 @@
 package com.eldercare.log.consumer;
 
-import com.eldercare.common.constant.MqConstants;
+import com.eldercare.common.enums.MqEnum;
 import com.eldercare.common.log.dto.OperationLogMessage;
 import com.eldercare.log.entity.OperationLog;
 import com.eldercare.log.mapper.OperationLogMapper;
@@ -23,7 +23,7 @@ public class OperationLogConsumer {
     /**
      * 消费操作日志消息。
      */
-    @RabbitListener(queues = MqConstants.OPERATION_LOG_QUEUE)
+    @RabbitListener(queues = "#{T(com.eldercare.common.enums.MqEnum).OPERATION_LOG_QUEUE.code()}")
     public void consume(OperationLogMessage message) {
         // 将消息写入日志表。
         mapper.insert(OperationLog.from(message));

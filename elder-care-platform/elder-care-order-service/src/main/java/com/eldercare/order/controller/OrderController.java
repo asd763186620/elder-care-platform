@@ -5,7 +5,7 @@ import com.eldercare.api.dto.OrderEvaluateDTO;
 import com.eldercare.api.vo.*;
 import com.eldercare.common.annotation.RepeatSubmit;
 import com.eldercare.common.annotation.RequireRole;
-import com.eldercare.common.constant.RoleConstants;
+import com.eldercare.common.enums.RoleEnum;
 import com.eldercare.common.response.Result;
 import com.eldercare.order.service.OrderAppService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -47,7 +47,7 @@ public class OrderController {
      */
     @PostMapping
     @RepeatSubmit(expireSeconds = 5)
-    @RequireRole({RoleConstants.ELDER, RoleConstants.FAMILY})
+    @RequireRole({RoleEnum.ELDER, RoleEnum.FAMILY})
     @Operation(summary = "发布预约单", description = "支持指定志愿者 ASSIGNED 和公共订单池 PUBLIC 两种模式")
     public Result<OrderVO> create(@Valid @RequestBody OrderCreateDTO dto) {
         return Result.success(service.create(dto));
@@ -72,7 +72,7 @@ public class OrderController {
      * @return 公共订单池列表。
      */
     @GetMapping("/pool")
-    @RequireRole(RoleConstants.VOLUNTEER)
+    @RequireRole(RoleEnum.VOLUNTEER)
     @Operation(summary = "查询公共订单池", description = "志愿者查看本社区待抢单订单")
     public Result<List<OrderVO>> pool() {
         return Result.success(service.pool());
@@ -102,7 +102,7 @@ public class OrderController {
      * 公共订单池游标分页。
      */
     @GetMapping("/pool/page")
-    @RequireRole(RoleConstants.VOLUNTEER)
+    @RequireRole(RoleEnum.VOLUNTEER)
     @Operation(summary = "公共订单池分页", description = "只返回当前社区 WAIT_GRAB 且未过期的公共池订单")
     public Result<CursorPageVO<OrderVO>> poolPage(@RequestParam(required = false) Long serviceItemId,
                                                   @RequestParam(required = false) Long lastId,
@@ -128,7 +128,7 @@ public class OrderController {
      */
     @PostMapping("/{orderId}/grab")
     @RepeatSubmit(expireSeconds = 5)
-    @RequireRole(RoleConstants.VOLUNTEER)
+    @RequireRole(RoleEnum.VOLUNTEER)
     @Operation(summary = "志愿者抢单", description = "使用 Redisson 锁和 MySQL 条件更新保证并发安全")
     public Result<Void> grab(@PathVariable @Min(value = 1, message = "orderId必须大于0") Long orderId) {
         service.grab(orderId);
@@ -144,7 +144,7 @@ public class OrderController {
      */
     @PostMapping("/{orderId}/cancel")
     @RepeatSubmit(expireSeconds = 5)
-    @RequireRole({RoleConstants.ELDER, RoleConstants.FAMILY})
+    @RequireRole({RoleEnum.ELDER, RoleEnum.FAMILY})
     @Operation(summary = "取消订单", description = "老人或代发亲情号取消有权限操作的订单")
     public Result<Void> cancel(@PathVariable @Min(value = 1, message = "orderId必须大于0") Long orderId) {
         service.cancel(orderId);
@@ -160,7 +160,7 @@ public class OrderController {
      */
     @PostMapping("/{orderId}/complete")
     @RepeatSubmit(expireSeconds = 5)
-    @RequireRole(RoleConstants.VOLUNTEER)
+    @RequireRole(RoleEnum.VOLUNTEER)
     @Operation(summary = "完成订单", description = "实际接单志愿者完成订单")
     public Result<Void> complete(@PathVariable @Min(value = 1, message = "orderId必须大于0") Long orderId) {
         service.complete(orderId);
@@ -172,7 +172,7 @@ public class OrderController {
      */
     @PostMapping("/{orderId}/start")
     @RepeatSubmit(expireSeconds = 5)
-    @RequireRole(RoleConstants.VOLUNTEER)
+    @RequireRole(RoleEnum.VOLUNTEER)
     @Operation(summary = "开始服务", description = "接单志愿者将订单从 WAIT_SERVICE 更新为 IN_SERVICE")
     public Result<Void> start(@PathVariable @Min(value = 1, message = "orderId必须大于0") Long orderId) {
         service.start(orderId);
@@ -184,7 +184,7 @@ public class OrderController {
      */
     @PostMapping("/{orderId}/submit-complete")
     @RepeatSubmit(expireSeconds = 5)
-    @RequireRole(RoleConstants.VOLUNTEER)
+    @RequireRole(RoleEnum.VOLUNTEER)
     @Operation(summary = "提交完成", description = "接单志愿者将订单从 IN_SERVICE 更新为 WAIT_CONFIRM")
     public Result<Void> submitComplete(@PathVariable @Min(value = 1, message = "orderId必须大于0") Long orderId) {
         service.submitComplete(orderId);
@@ -196,7 +196,7 @@ public class OrderController {
      */
     @PostMapping("/{orderId}/confirm")
     @RepeatSubmit(expireSeconds = 5)
-    @RequireRole({RoleConstants.ELDER, RoleConstants.FAMILY})
+    @RequireRole({RoleEnum.ELDER, RoleEnum.FAMILY})
     @Operation(summary = "确认完成", description = "老人本人或绑定亲情号确认订单完成")
     public Result<Void> confirm(@PathVariable @Min(value = 1, message = "orderId必须大于0") Long orderId) {
         service.confirm(orderId);
@@ -208,7 +208,7 @@ public class OrderController {
      */
     @PostMapping("/{orderId}/evaluate")
     @RepeatSubmit(expireSeconds = 5)
-    @RequireRole({RoleConstants.ELDER, RoleConstants.FAMILY})
+    @RequireRole({RoleEnum.ELDER, RoleEnum.FAMILY})
     @Operation(summary = "评价订单", description = "订单完成后老人本人或绑定亲情号评价志愿者")
     public Result<Void> evaluate(@PathVariable @Min(value = 1, message = "orderId必须大于0") Long orderId, @Valid @RequestBody OrderEvaluateDTO dto) {
         service.evaluate(orderId, dto);

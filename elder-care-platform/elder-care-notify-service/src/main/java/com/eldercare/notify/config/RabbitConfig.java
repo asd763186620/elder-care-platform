@@ -1,6 +1,6 @@
 package com.eldercare.notify.config;
 
-import com.eldercare.common.constant.MqConstants;
+import com.eldercare.common.enums.MqEnum;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
@@ -29,7 +29,7 @@ public class RabbitConfig {
     @Bean
     public DirectExchange orderEventExchange() {
         // durable=true，保证交换机持久化。
-        return new DirectExchange(MqConstants.ORDER_EVENT_EXCHANGE, true, false);
+        return new DirectExchange(MqEnum.ORDER_EVENT_EXCHANGE.code(), true, false);
     }
 
     /**
@@ -38,7 +38,7 @@ public class RabbitConfig {
     @Bean
     public Queue orderNotifyQueue() {
         // durable 队列可在 RabbitMQ 重启后保留。
-        return QueueBuilder.durable(MqConstants.ORDER_NOTIFY_QUEUE).build();
+        return QueueBuilder.durable(MqEnum.ORDER_NOTIFY_QUEUE.code()).build();
     }
 
     /**
@@ -47,7 +47,7 @@ public class RabbitConfig {
     @Bean
     public Binding bindCreated(Queue orderNotifyQueue, DirectExchange orderEventExchange) {
         // 监听 order.created。
-        return BindingBuilder.bind(orderNotifyQueue).to(orderEventExchange).with(MqConstants.ORDER_CREATED_ROUTING_KEY);
+        return BindingBuilder.bind(orderNotifyQueue).to(orderEventExchange).with(MqEnum.ORDER_CREATED_ROUTING_KEY.code());
     }
 
     /**
@@ -56,7 +56,7 @@ public class RabbitConfig {
     @Bean
     public Binding bindGrabbed(Queue orderNotifyQueue, DirectExchange orderEventExchange) {
         // 监听 order.grabbed。
-        return BindingBuilder.bind(orderNotifyQueue).to(orderEventExchange).with(MqConstants.ORDER_GRABBED_ROUTING_KEY);
+        return BindingBuilder.bind(orderNotifyQueue).to(orderEventExchange).with(MqEnum.ORDER_GRABBED_ROUTING_KEY.code());
     }
 
     /**
@@ -65,7 +65,7 @@ public class RabbitConfig {
     @Bean
     public Binding bindCancelled(Queue orderNotifyQueue, DirectExchange orderEventExchange) {
         // 监听 order.cancelled。
-        return BindingBuilder.bind(orderNotifyQueue).to(orderEventExchange).with(MqConstants.ORDER_CANCELLED_ROUTING_KEY);
+        return BindingBuilder.bind(orderNotifyQueue).to(orderEventExchange).with(MqEnum.ORDER_CANCELLED_ROUTING_KEY.code());
     }
 
     /**
@@ -74,7 +74,7 @@ public class RabbitConfig {
     @Bean
     public Binding bindCompleted(Queue orderNotifyQueue, DirectExchange orderEventExchange) {
         // 监听 order.completed。
-        return BindingBuilder.bind(orderNotifyQueue).to(orderEventExchange).with(MqConstants.ORDER_COMPLETED_ROUTING_KEY);
+        return BindingBuilder.bind(orderNotifyQueue).to(orderEventExchange).with(MqEnum.ORDER_COMPLETED_ROUTING_KEY.code());
     }
 
     /**
@@ -83,7 +83,7 @@ public class RabbitConfig {
     @Bean
     public Binding bindStarted(Queue orderNotifyQueue, DirectExchange orderEventExchange) {
         // 监听 order.started。
-        return BindingBuilder.bind(orderNotifyQueue).to(orderEventExchange).with(MqConstants.ORDER_STARTED_ROUTING_KEY);
+        return BindingBuilder.bind(orderNotifyQueue).to(orderEventExchange).with(MqEnum.ORDER_STARTED_ROUTING_KEY.code());
     }
 
     /**
@@ -92,6 +92,6 @@ public class RabbitConfig {
     @Bean
     public Binding bindSubmitted(Queue orderNotifyQueue, DirectExchange orderEventExchange) {
         // 监听 order.submitted。
-        return BindingBuilder.bind(orderNotifyQueue).to(orderEventExchange).with(MqConstants.ORDER_SUBMITTED_ROUTING_KEY);
+        return BindingBuilder.bind(orderNotifyQueue).to(orderEventExchange).with(MqEnum.ORDER_SUBMITTED_ROUTING_KEY.code());
     }
 }

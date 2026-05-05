@@ -1,6 +1,6 @@
 package com.eldercare.log.consumer;
 
-import com.eldercare.common.constant.MqConstants;
+import com.eldercare.common.enums.MqEnum;
 import com.eldercare.common.log.dto.ApiAccessLogMessage;
 import com.eldercare.log.entity.ApiAccessLog;
 import com.eldercare.log.mapper.ApiAccessLogMapper;
@@ -23,7 +23,7 @@ public class ApiAccessLogConsumer {
     /**
      * 消费接口访问日志消息。
      */
-    @RabbitListener(queues = MqConstants.API_ACCESS_LOG_QUEUE)
+    @RabbitListener(queues = "#{T(com.eldercare.common.enums.MqEnum).API_ACCESS_LOG_QUEUE.code()}")
     public void consume(ApiAccessLogMessage message) {
         // 将消息写入日志表。
         mapper.insert(ApiAccessLog.from(message));

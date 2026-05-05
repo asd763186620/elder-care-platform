@@ -1,7 +1,7 @@
 package com.eldercare.order.producer;
 
 import com.eldercare.api.dto.OrderEventDTO;
-import com.eldercare.common.constant.MqConstants;
+import com.eldercare.common.enums.MqEnum;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
@@ -28,6 +28,6 @@ public class OrderEventProducer {
      */
     public void send(String routingKey, OrderEventDTO event) {
         // 发送到订单事件交换机，由 routingKey 决定进入哪个队列。
-        rabbitTemplate.convertAndSend(MqConstants.ORDER_EVENT_EXCHANGE, routingKey, event);
+        rabbitTemplate.convertAndSend(MqEnum.ORDER_EVENT_EXCHANGE.code(), routingKey, event);
     }
 }

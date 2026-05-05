@@ -7,8 +7,9 @@ import com.eldercare.api.client.UserFeignClient;
 import com.eldercare.api.client.VolunteerFeignClient;
 import com.eldercare.api.dto.*;
 import com.eldercare.api.vo.*;
-import com.eldercare.common.constant.MqConstants;
-import com.eldercare.common.constant.RoleConstants;
+import com.eldercare.common.enums.RoleEnum;
+import com.eldercare.common.enums.MqEnum;
+import com.eldercare.common.enums.RedisKeyEnum;
 import com.eldercare.common.context.UserContext;
 import com.eldercare.common.context.UserInfoDTO;
 import com.eldercare.common.exception.BizException;
@@ -21,13 +22,19 @@ import com.eldercare.order.entity.OrderEventOutbox;
 import com.eldercare.order.entity.OrderGrabRecord;
 import com.eldercare.order.entity.OrderStatusLog;
 import com.eldercare.order.entity.ServiceOrder;
+import com.eldercare.order.enums.OrderAssignModeEnum;
+import com.eldercare.order.enums.OrderEventTypeEnum;
+import com.eldercare.order.enums.OrderOperateTypeEnum;
 import com.eldercare.order.enums.OrderStatusEnum;
+import com.eldercare.order.enums.OrderTimeoutEnum;
 import com.eldercare.order.mapper.OrderEvaluationMapper;
 import com.eldercare.order.mapper.OrderEventOutboxMapper;
 import com.eldercare.order.mapper.OrderGrabRecordMapper;
 import com.eldercare.order.mapper.OrderStatusLogMapper;
 import com.eldercare.order.mapper.ServiceOrderMapper;
 import com.eldercare.order.producer.OrderEventProducer;
+import com.eldercare.order.producer.OrderTimeoutProducer;
+import com.eldercare.order.message.OrderTimeoutMessage;
 import com.eldercare.order.service.OrderAppService;
 import com.eldercare.order.util.OrderNoGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -37,6 +44,8 @@ import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -51,50 +60,6 @@ import java.util.function.Function;
  */
 @Service
 public class OrderAppServiceImpl implements OrderAppService {
-    /**
-     * 前端入参：指定志愿者模式。
-     */
-    private static final String ASSIGNED = "ASSIGNED";
-
-    /**
-     * 前端入参：公共订单池模式。
-     */
-    private static final String PUBLIC = "PUBLIC";
-
-    /**
-     * 数据库存储：指定志愿者模式。
-     */
-    private static final String DIRECT = "DIRECT";
-
-    /**
-     * 数据库存储：公共订单池模式。
-     */
-    private static final String PUBLIC_POOL = "PUBLIC_POOL";
-
-    /** 订单状态：待分配，公共池订单生产级状态。 */
-    private static final String PENDING_ASSIGN = OrderStatusEnum.PENDING_ASSIGN.code();
-    /** 订单状态：已分配，指定志愿者或抢单成功后的生产级状态。 */
-    private static final String ASSIGNED_STATUS = OrderStatusEnum.ASSIGNED.code();
-    /** 订单状态：待抢单。 */
-    private static final String WAIT_GRAB = OrderStatusEnum.WAIT_GRAB.code();
-    /** 订单状态：待服务。 */
-    private static final String WAIT_SERVICE = OrderStatusEnum.WAIT_SERVICE.code();
-    /** 订单状态：服务中。 */
-    private static final String IN_SERVICE = OrderStatusEnum.IN_SERVICE.code();
-    /** 订单状态：待确认。 */
-    private static final String WAIT_CONFIRM = OrderStatusEnum.WAIT_CONFIRM.code();
-    /** 订单状态：已取消。 */
-    private static final String CANCELLED = OrderStatusEnum.CANCELLED.code();
-    /** 订单状态：超时关闭。 */
-    private static final String TIMEOUT_CLOSED = OrderStatusEnum.TIMEOUT_CLOSED.code();
-    /** 订单状态：已完成。 */
-    private static final String COMPLETED = OrderStatusEnum.COMPLETED.code();
-
-    /**
-     * 公共池订单默认抢单超时时间，单位分钟。
-     */
-    private static final long DEFAULT_GRAB_TIMEOUT_MINUTES = 30L;
-
     /**
      * 订单 Mapper。
      */
@@ -146,6 +111,11 @@ public class OrderAppServiceImpl implements OrderAppService {
     private final OrderEventProducer producer;
 
     /**
+     * 订单超时消息生产者。
+     */
+    private final OrderTimeoutProducer timeoutProducer;
+
+    /**
      * 订单号生成器。
      */
     private final OrderNoGenerator orderNoGenerator;
@@ -165,6 +135,7 @@ public class OrderAppServiceImpl implements OrderAppService {
                                VolunteerFeignClient volunteerFeignClient,
                                RedissonClient redissonClient,
                                OrderEventProducer producer,
+                               OrderTimeoutProducer timeoutProducer,
                                OrderNoGenerator orderNoGenerator,
                                ObjectMapper objectMapper) {
         // 保存订单 Mapper。
@@ -187,6 +158,8 @@ public class OrderAppServiceImpl implements OrderAppService {
         this.redissonClient = redissonClient;
         // 保存 MQ 生产者。
         this.producer = producer;
+        // 保存超时消息生产者。
+        this.timeoutProducer = timeoutProducer;
         // 保存订单号生成器。
         this.orderNoGenerator = orderNoGenerator;
         // 保存 JSON 序列化器。
@@ -206,12 +179,12 @@ public class OrderAppServiceImpl implements OrderAppService {
             throw new BizException(ErrorCode.NOT_FOUND, "服务项目不属于当前社区");
         }
         // 老人角色下单时，只能给自己下单。
-        if (UserContext.hasRole(RoleConstants.ELDER) && !user.userId().equals(dto.elderUserId())) {
+        if (UserContext.hasRole(RoleEnum.ELDER) && !user.userId().equals(dto.elderUserId())) {
             // 防止老人越权给其他老人下单。
             throw new BizException(ErrorCode.FORBIDDEN, "老人只能给自己下单");
         }
         // 亲情号角色下单时，如果不是给自己下单，就必须校验绑定关系。
-        if (UserContext.hasRole(RoleConstants.FAMILY) && !user.userId().equals(dto.elderUserId())) {
+        if (UserContext.hasRole(RoleEnum.FAMILY) && !user.userId().equals(dto.elderUserId())) {
             // 调用 user-service 内部接口校验亲情号是否绑定该老人。
             Boolean bind = remoteData(userFeignClient.checkFamilyBind(user.communityId(), user.userId(), dto.elderUserId()), "user-service", "亲情号绑定关系校验失败");
             // 未绑定时禁止代下单。
@@ -225,7 +198,7 @@ public class OrderAppServiceImpl implements OrderAppService {
                 user.roles().isEmpty() ? null : user.roles().get(0), dto.serviceItemId(), dto.serviceAddress(),
                 dto.serviceStartTime(), dto.serviceEndTime(), dto.remark());
         // 指定志愿者模式。
-        if (ASSIGNED.equals(dto.assignMode())) {
+        if (OrderAssignModeEnum.ASSIGNED.is(dto.assignMode())) {
             // 指定志愿者模式必须传志愿者 ID。
             if (dto.specifiedVolunteerUserId() == null)
                 throw new BizException(ErrorCode.PARAM_ERROR, "指定志愿者不能为空");
@@ -234,7 +207,7 @@ public class OrderAppServiceImpl implements OrderAppService {
             // 志愿者不可用时禁止创建指定订单。
             if (!Boolean.TRUE.equals(ok)) throw new BizException(ErrorCode.VOLUNTEER_TIME_CONFLICT);
             // 指定志愿者订单的状态和志愿者字段由实体自身维护。
-            order.assignToVolunteer(dto.specifiedVolunteerUserId(), DIRECT, ASSIGNED_STATUS);
+            order.assignToVolunteer(dto.specifiedVolunteerUserId(), OrderAssignModeEnum.DIRECT.code(), OrderStatusEnum.ASSIGNED.code());
             // 先插入订单，生成订单 ID，供时间锁关联。
             orderMapper.insert(order);
             // 调用 volunteer-service 锁定志愿者时间。
@@ -242,17 +215,19 @@ public class OrderAppServiceImpl implements OrderAppService {
             // 时间锁失败时回滚订单创建事务。
             if (!Boolean.TRUE.equals(locked)) throw new BizException(ErrorCode.VOLUNTEER_TIME_CONFLICT);
             // 记录订单状态日志。
-            log(order, null, ASSIGNED_STATUS, user.userId(), "CREATE");
+            log(order, null, OrderStatusEnum.ASSIGNED.code(), user.userId(), OrderOperateTypeEnum.CREATE);
         } else {
             // 公共池订单的派单模式和状态由实体自身维护。
-            order.waitForGrab(PUBLIC_POOL, PENDING_ASSIGN, LocalDateTime.now().plusMinutes(DEFAULT_GRAB_TIMEOUT_MINUTES));
+            order.waitForGrab(OrderAssignModeEnum.PUBLIC_POOL.code(), OrderStatusEnum.PENDING_ASSIGN.code(), LocalDateTime.now().plusMinutes(OrderTimeoutEnum.PUBLIC_POOL_GRAB_TIMEOUT.timeoutMinutes()));
             // 插入订单。
             orderMapper.insert(order);
             // 记录创建日志。
-            log(order, null, PENDING_ASSIGN, user.userId(), "CREATE");
+            log(order, null, OrderStatusEnum.PENDING_ASSIGN.code(), user.userId(), OrderOperateTypeEnum.CREATE);
+            // 事务提交后投递 30 分钟超时消息，消息到期进入死信队列并触发自动关闭。
+            sendTimeoutAfterCommit(order);
         }
         // 发送订单创建 MQ 事件。
-        send(order, "ORDER_CREATED", MqConstants.ORDER_CREATED_ROUTING_KEY, user.userId());
+        send(order, OrderEventTypeEnum.ORDER_CREATED, MqEnum.ORDER_CREATED_ROUTING_KEY, user.userId());
         // 返回订单 VO。
         return toVO(order);
     }
@@ -264,9 +239,9 @@ public class OrderAppServiceImpl implements OrderAppService {
         // 所有订单查询都必须限定 community_id。
         QueryWrapper<ServiceOrder> qw = new QueryWrapper<ServiceOrder>().eq("community_id", user.communityId()).eq("deleted", 0);
         // 志愿者查看自己接到的订单。
-        if (UserContext.hasRole(RoleConstants.VOLUNTEER)) qw.eq("assigned_volunteer_user_id", user.userId());
+        if (UserContext.hasRole(RoleEnum.VOLUNTEER)) qw.eq("assigned_volunteer_user_id", user.userId());
             // 亲情号查看自己代发的订单。
-        else if (UserContext.hasRole(RoleConstants.FAMILY)) qw.eq("creator_user_id", user.userId());
+        else if (UserContext.hasRole(RoleEnum.FAMILY)) qw.eq("creator_user_id", user.userId());
             // 老人查看自己的订单。
         else qw.eq("elder_user_id", user.userId());
         // 按最新订单倒序返回。
@@ -280,8 +255,8 @@ public class OrderAppServiceImpl implements OrderAppService {
         // 查询本社区公共池待抢订单。
         return orderMapper.selectList(new QueryWrapper<ServiceOrder>()
                 .eq("community_id", user.communityId())
-                .eq("assign_mode", PUBLIC_POOL)
-                .eq("order_status", PENDING_ASSIGN)
+                .eq("assign_mode", OrderAssignModeEnum.PUBLIC_POOL.code())
+                .eq("order_status", OrderStatusEnum.PENDING_ASSIGN.code())
                 .eq("deleted", 0)
                 .orderByAsc("service_start_time")).stream().map(this::toVO).toList();
     }
@@ -333,8 +308,8 @@ public class OrderAppServiceImpl implements OrderAppService {
         // 构造公共池查询，只看本社区、待抢单、未过服务开始时间的订单。
         QueryWrapper<ServiceOrder> qw = new QueryWrapper<ServiceOrder>()
                 .eq("community_id", user.communityId())
-                .eq("assign_mode", PUBLIC_POOL)
-                .eq("order_status", PENDING_ASSIGN)
+                .eq("assign_mode", OrderAssignModeEnum.PUBLIC_POOL.code())
+                .eq("order_status", OrderStatusEnum.PENDING_ASSIGN.code())
                 .gt("service_start_time", LocalDateTime.now())
                 .eq("deleted", 0);
         // 服务项目可选过滤。
@@ -357,9 +332,9 @@ public class OrderAppServiceImpl implements OrderAppService {
         // 基础查询限定当前身份可见订单。
         QueryWrapper<ServiceOrder> base = buildMyOrderQuery(user);
         // 分别统计小程序 tab 所需状态数量。
-        return new OrderStatusCountVO(countByStatuses(base, PENDING_ASSIGN, WAIT_GRAB), countByStatuses(base, ASSIGNED_STATUS, WAIT_SERVICE),
-                countByStatus(base, IN_SERVICE), countByStatus(base, WAIT_CONFIRM), countByStatus(base, COMPLETED),
-                countByStatus(base, CANCELLED) + countByStatus(base, TIMEOUT_CLOSED));
+        return new OrderStatusCountVO(countByStatuses(base, OrderStatusEnum.PENDING_ASSIGN.code(), OrderStatusEnum.WAIT_GRAB.code()), countByStatuses(base, OrderStatusEnum.ASSIGNED.code(), OrderStatusEnum.WAIT_SERVICE.code()),
+                countByStatus(base, OrderStatusEnum.IN_SERVICE.code()), countByStatus(base, OrderStatusEnum.WAIT_CONFIRM.code()), countByStatus(base, OrderStatusEnum.COMPLETED.code()),
+                countByStatus(base, OrderStatusEnum.CANCELLED.code()) + countByStatus(base, OrderStatusEnum.TIMEOUT_CLOSED.code()));
     }
 
     @Override
@@ -370,14 +345,14 @@ public class OrderAppServiceImpl implements OrderAppService {
         // 读取当前志愿者上下文。
         UserInfoDTO user = currentUser();
         // 抢单分布式锁 key，满足需求中的 lock:order:grab:{orderId}。
-        RLock lock = redissonClient.getLock("lock:order:grab:" + orderId);
+        RLock lock = redissonClient.getLock(RedisKeyEnum.ORDER_GRAB_LOCK.code() + orderId);
         try {
             // 最多等待 5 秒，锁自动过期 10 秒。
             if (!lock.tryLock(5, 10, TimeUnit.SECONDS)) throw new BizException(ErrorCode.BUSINESS_CONFLICT, "抢单繁忙");
             // 锁内查询订单，限定本社区、待分配状态，并要求尚未写入志愿者。
             ServiceOrder order = orderMapper.selectOne(new QueryWrapper<ServiceOrder>().eq("id", orderId)
                     .eq("community_id", user.communityId())
-                    .eq("order_status", PENDING_ASSIGN)
+                    .eq("order_status", OrderStatusEnum.PENDING_ASSIGN.code())
                     .isNull("assigned_volunteer_user_id")
                     .last("limit 1"));
             // 查不到说明订单不存在、跨社区或已被抢。
@@ -391,7 +366,7 @@ public class OrderAppServiceImpl implements OrderAppService {
                     // 设置接单志愿者。
                     .set("assigned_volunteer_user_id", user.userId())
                     // 设置订单状态为已分配。
-                    .set("order_status", ASSIGNED_STATUS)
+                    .set("order_status", OrderStatusEnum.ASSIGNED.code())
                     // 设置接单时间。
                     .set("assigned_at", LocalDateTime.now())
                     // 乐观锁版本号递增。
@@ -401,7 +376,7 @@ public class OrderAppServiceImpl implements OrderAppService {
                     // 限定社区 ID。
                     .eq("community_id", user.communityId())
                     // 核心并发条件：只有待抢单状态可以更新成功。
-                    .eq("order_status", PENDING_ASSIGN)
+                    .eq("order_status", OrderStatusEnum.PENDING_ASSIGN.code())
                     // 核心并发条件：尚未被任何志愿者接取。
                     .isNull("assigned_volunteer_user_id")
                     // 核心并发条件：版本号必须等于查询时版本，避免并发覆盖。
@@ -414,15 +389,15 @@ public class OrderAppServiceImpl implements OrderAppService {
                 throw new BizException(ErrorCode.ORDER_STATUS_ERROR, "订单已被接取");
             }
             // 更新内存对象，便于后续写日志和发 MQ。
-            order.markGrabbed(user.userId(), ASSIGNED_STATUS);
+            order.markGrabbed(user.userId(), OrderStatusEnum.ASSIGNED.code());
             // 记录抢单流水。
             OrderGrabRecord r = OrderGrabRecord.success(order, user.userId(), UUID.randomUUID().toString());
             // 插入抢单记录。
             grabMapper.insert(r);
             // 写订单状态日志。
-            log(order, PENDING_ASSIGN, ASSIGNED_STATUS, user.userId(), "GRAB");
+            log(order, OrderStatusEnum.PENDING_ASSIGN.code(), OrderStatusEnum.ASSIGNED.code(), user.userId(), OrderOperateTypeEnum.GRAB);
             // 发送抢单成功 MQ 事件。
-            send(order, "ORDER_GRABBED", MqConstants.ORDER_GRABBED_ROUTING_KEY, user.userId());
+            send(order, OrderEventTypeEnum.ORDER_GRABBED, MqEnum.ORDER_GRABBED_ROUTING_KEY, user.userId());
         } catch (InterruptedException e) {
             // 恢复线程中断标记。
             Thread.currentThread().interrupt();
@@ -440,7 +415,7 @@ public class OrderAppServiceImpl implements OrderAppService {
             description = "取消预约单", bizId = "#orderId")
     public void cancel(Long orderId) {
         // 取消订单并发送取消事件。
-        changeStatus(orderId, OrderStatusEnum.CANCELLED, "CANCEL", MqConstants.ORDER_CANCELLED_ROUTING_KEY, "ORDER_CANCELLED");
+        changeStatus(orderId, OrderStatusEnum.CANCELLED, OrderOperateTypeEnum.CANCEL, MqEnum.ORDER_CANCELLED_ROUTING_KEY, OrderEventTypeEnum.ORDER_CANCELLED);
     }
 
     @Override
@@ -451,7 +426,7 @@ public class OrderAppServiceImpl implements OrderAppService {
         // 先加载用户上下文，避免直接读取 ThreadLocal 时为空。
         currentUser();
         // 兼容旧接口：志愿者调用 complete 时按“提交完成”处理。
-        if (UserContext.hasRole(RoleConstants.VOLUNTEER)) {
+        if (UserContext.hasRole(RoleEnum.VOLUNTEER)) {
             // 志愿者提交完成，等待老人或亲情号确认。
             submitComplete(orderId);
             // 结束兼容处理。
@@ -467,7 +442,7 @@ public class OrderAppServiceImpl implements OrderAppService {
             description = "志愿者开始服务", bizId = "#orderId")
     public void start(Long orderId) {
         // 开始服务并发送开始事件。
-        changeStatus(orderId, OrderStatusEnum.IN_SERVICE, "START", MqConstants.ORDER_STARTED_ROUTING_KEY, "ORDER_STARTED");
+        changeStatus(orderId, OrderStatusEnum.IN_SERVICE, OrderOperateTypeEnum.START, MqEnum.ORDER_STARTED_ROUTING_KEY, OrderEventTypeEnum.ORDER_STARTED);
     }
 
     @Override
@@ -476,7 +451,7 @@ public class OrderAppServiceImpl implements OrderAppService {
             description = "志愿者提交完成", bizId = "#orderId")
     public void submitComplete(Long orderId) {
         // 志愿者提交完成，进入待确认。
-        changeStatus(orderId, OrderStatusEnum.WAIT_CONFIRM, "SUBMIT_COMPLETE", MqConstants.ORDER_SUBMITTED_ROUTING_KEY, "ORDER_SUBMITTED");
+        changeStatus(orderId, OrderStatusEnum.WAIT_CONFIRM, OrderOperateTypeEnum.SUBMIT_COMPLETE, MqEnum.ORDER_SUBMITTED_ROUTING_KEY, OrderEventTypeEnum.ORDER_SUBMITTED);
     }
 
     @Override
@@ -485,7 +460,7 @@ public class OrderAppServiceImpl implements OrderAppService {
             description = "老人或亲情号确认完成", bizId = "#orderId")
     public void confirm(Long orderId) {
         // 老人或亲情号确认完成。
-        changeStatus(orderId, OrderStatusEnum.COMPLETED, "CONFIRM_COMPLETE", MqConstants.ORDER_COMPLETED_ROUTING_KEY, "ORDER_COMPLETED");
+        changeStatus(orderId, OrderStatusEnum.COMPLETED, OrderOperateTypeEnum.CONFIRM_COMPLETE, MqEnum.ORDER_COMPLETED_ROUTING_KEY, OrderEventTypeEnum.ORDER_COMPLETED);
     }
 
     @Override
@@ -500,7 +475,7 @@ public class OrderAppServiceImpl implements OrderAppService {
         // 只有老人本人或已绑定亲情号可以评价。
         checkConfirmPermission(order, user);
         // 只有已完成订单可以评价。
-        if (!COMPLETED.equals(order.getOrderStatus())) {
+        if (!OrderStatusEnum.COMPLETED.code().equals(order.getOrderStatus())) {
             // 状态不正确时拒绝评价。
             throw new BizException(ErrorCode.ORDER_STATUS_ERROR, "订单完成后才能评价");
         }
@@ -552,7 +527,7 @@ public class OrderAppServiceImpl implements OrderAppService {
         Long totalServiceCount = orderMapper.selectCount(new QueryWrapper<ServiceOrder>()
                 .eq("community_id", user.communityId())
                 .eq("assigned_volunteer_user_id", volunteerId)
-                .eq("order_status", COMPLETED)
+                .eq("order_status", OrderStatusEnum.COMPLETED.code())
                 .eq("deleted", 0));
         // 返回评分信息。
         return new VolunteerScoreVO(volunteerId, avgScore, totalServiceCount == null ? 0 : totalServiceCount, evaluationCount);
@@ -565,7 +540,7 @@ public class OrderAppServiceImpl implements OrderAppService {
         LocalDateTime now = LocalDateTime.now();
         // 扫描待抢单且已超过抢单截止时间，或预约开始时间已经过去的订单。
         List<ServiceOrder> timeoutOrders = orderMapper.selectList(new QueryWrapper<ServiceOrder>()
-                .eq("order_status", PENDING_ASSIGN)
+                .eq("order_status", OrderStatusEnum.PENDING_ASSIGN.code())
                 .eq("deleted", 0)
                 .and(wrapper -> wrapper.le("grab_deadline", now).or().le("service_start_time", now))
                 .last("LIMIT 50"));
@@ -573,23 +548,23 @@ public class OrderAppServiceImpl implements OrderAppService {
         int closed = 0;
         // 遍历超时订单。
         for (ServiceOrder order : timeoutOrders) {
-            // 条件更新保证只有仍处于 WAIT_GRAB 的订单会被自动关闭。
+            // 条件更新保证只有仍处于 OrderStatusEnum.WAIT_GRAB.code() 的订单会被自动关闭。
             int updated = orderMapper.update(null, new UpdateWrapper<ServiceOrder>()
-                    .set("order_status", TIMEOUT_CLOSED)
-                    .set("cancel_reason", "系统超时自动关闭")
+                    .set("order_status", OrderStatusEnum.TIMEOUT_CLOSED.code())
+                    .set("cancel_reason", OrderTimeoutEnum.PUBLIC_POOL_GRAB_TIMEOUT.cancelReason())
                     .set("cancelled_at", now)
                     .setSql("version = version + 1")
                     .eq("id", order.getId())
                     .eq("community_id", order.getCommunityId())
-                    .eq("order_status", PENDING_ASSIGN));
+                    .eq("order_status", OrderStatusEnum.PENDING_ASSIGN.code()));
             // 更新成功才写日志和通知。
             if (updated == 1) {
                 // 更新内存状态。
-                order.markStatusChanged(TIMEOUT_CLOSED);
+                order.markStatusChanged(OrderStatusEnum.TIMEOUT_CLOSED.code());
                 // 记录系统自动关闭日志，operator 使用 0 表示系统。
-                log(order, PENDING_ASSIGN, TIMEOUT_CLOSED, 0L, "AUTO_TIMEOUT_CANCEL");
+                log(order, OrderStatusEnum.PENDING_ASSIGN.code(), OrderStatusEnum.TIMEOUT_CLOSED.code(), 0L, OrderOperateTypeEnum.AUTO_TIMEOUT_CANCEL);
                 // 发送自动关闭通知。
-                send(order, "ORDER_CANCELLED", MqConstants.ORDER_CANCELLED_ROUTING_KEY, 0L);
+                send(order, OrderEventTypeEnum.ORDER_CANCELLED, MqEnum.ORDER_CANCELLED_ROUTING_KEY, 0L);
                 // 累加关闭数量。
                 closed++;
             }
@@ -598,7 +573,42 @@ public class OrderAppServiceImpl implements OrderAppService {
         return closed;
     }
 
-    private void changeStatus(Long orderId, OrderStatusEnum toStatus, String op, String routing, String event) {
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean closeTimeoutOrder(Long orderId, Long communityId) {
+        LocalDateTime now = LocalDateTime.now();
+        ServiceOrder order = orderMapper.selectOne(new QueryWrapper<ServiceOrder>()
+                .eq("id", orderId)
+                .eq("community_id", communityId)
+                .eq("deleted", 0)
+                .last("limit 1"));
+        if (order == null || !OrderStatusEnum.PENDING_ASSIGN.code().equals(order.getOrderStatus())) {
+            return false;
+        }
+        boolean grabExpired = order.getGrabDeadline() != null && !order.getGrabDeadline().isAfter(now);
+        boolean serviceStarted = order.getServiceStartTime() != null && !order.getServiceStartTime().isAfter(now);
+        if (!grabExpired && !serviceStarted) {
+            return false;
+        }
+        int updated = orderMapper.update(null, new UpdateWrapper<ServiceOrder>()
+                .set("order_status", OrderStatusEnum.TIMEOUT_CLOSED.code())
+                .set("cancel_reason", OrderTimeoutEnum.PUBLIC_POOL_GRAB_TIMEOUT.cancelReason())
+                .set("cancelled_at", now)
+                .setSql("version = version + 1")
+                .eq("id", orderId)
+                .eq("community_id", communityId)
+                .eq("order_status", OrderStatusEnum.PENDING_ASSIGN.code())
+                .eq("version", order.getVersion()));
+        if (updated != 1) {
+            return false;
+        }
+        order.markStatusChanged(OrderStatusEnum.TIMEOUT_CLOSED.code());
+        log(order, OrderStatusEnum.PENDING_ASSIGN.code(), OrderStatusEnum.TIMEOUT_CLOSED.code(), 0L, OrderOperateTypeEnum.AUTO_TIMEOUT_CANCEL);
+        send(order, OrderEventTypeEnum.ORDER_CANCELLED, MqEnum.ORDER_CANCELLED_ROUTING_KEY, 0L);
+        return true;
+    }
+
+    private void changeStatus(Long orderId, OrderStatusEnum toStatus, OrderOperateTypeEnum op, MqEnum routing, OrderEventTypeEnum event) {
         // 读取当前用户上下文。
         UserInfoDTO user = currentUser();
         // 查询本社区订单。
@@ -618,13 +628,13 @@ public class OrderAppServiceImpl implements OrderAppService {
                 // 写入目标状态。
                 .set("order_status", to)
                 // 取消订单时写入取消时间。
-                .set(CANCELLED.equals(to), "cancelled_at", LocalDateTime.now())
+                .set(OrderStatusEnum.CANCELLED.code().equals(to), "cancelled_at", LocalDateTime.now())
                 // 开始服务时写入开始服务时间。
-                .set(IN_SERVICE.equals(to), "service_started_at", LocalDateTime.now())
+                .set(OrderStatusEnum.IN_SERVICE.code().equals(to), "service_started_at", LocalDateTime.now())
                 // 提交完成时写入提交完成时间。
-                .set(WAIT_CONFIRM.equals(to), "submitted_at", LocalDateTime.now())
+                .set(OrderStatusEnum.WAIT_CONFIRM.code().equals(to), "submitted_at", LocalDateTime.now())
                 // 完成订单时写入完成时间。
-                .set(COMPLETED.equals(to), "completed_at", LocalDateTime.now())
+                .set(OrderStatusEnum.COMPLETED.code().equals(to), "completed_at", LocalDateTime.now())
                 // 乐观锁版本号递增。
                 .setSql("version = version + 1")
                 // 限定订单 ID。
@@ -636,7 +646,7 @@ public class OrderAppServiceImpl implements OrderAppService {
         // 更新失败说明状态已经被其他请求修改。
         if (updated != 1) throw new BizException(ErrorCode.ORDER_STATUS_ERROR, "订单状态已变化");
         // 取消已接单订单时释放志愿者时间。
-        if (CANCELLED.equals(to) && order.getAssignedVolunteerUserId() != null) {
+        if (OrderStatusEnum.CANCELLED.code().equals(to) && order.getAssignedVolunteerUserId() != null) {
             // 通知 volunteer-service 释放该订单占用的志愿者时间锁。
             volunteerFeignClient.releaseTime(new VolunteerLockTimeDTO(user.communityId(), order.getAssignedVolunteerUserId(), order.getId(), order.getServiceItemId(), order.getServiceStartTime(), order.getServiceEndTime()));
         }
@@ -652,18 +662,18 @@ public class OrderAppServiceImpl implements OrderAppService {
      * 校验当前用户是否有权执行订单状态操作。
      *
      * @param order 目标订单。
-     * @param to    目标状态。
+     * @param toStatus    目标状态。
      * @param user  当前登录用户。
      */
     private void checkOperatePermission(ServiceOrder order, OrderStatusEnum toStatus, UserInfoDTO user) {
         // 目标状态编码。
         String to = toStatus.code();
         // 取消订单只能由老人本人或代发亲情号操作。
-        if (CANCELLED.equals(to)) {
+        if (OrderStatusEnum.CANCELLED.code().equals(to)) {
             // 老人本人可以取消自己的订单。
-            boolean elderOwner = UserContext.hasRole(RoleConstants.ELDER) && user.userId().equals(order.getElderUserId());
+            boolean elderOwner = UserContext.hasRole(RoleEnum.ELDER) && user.userId().equals(order.getElderUserId());
             // 亲情号只能取消自己创建的代发订单。
-            boolean familyCreator = UserContext.hasRole(RoleConstants.FAMILY) && user.userId().equals(order.getCreatorUserId());
+            boolean familyCreator = UserContext.hasRole(RoleEnum.FAMILY) && user.userId().equals(order.getCreatorUserId());
             // 两种条件都不满足时禁止取消。
             if (!elderOwner && !familyCreator) {
                 // 抛出无权限异常。
@@ -671,12 +681,12 @@ public class OrderAppServiceImpl implements OrderAppService {
             }
         }
         // 开始服务和提交完成只能由接单志愿者操作。
-        if (IN_SERVICE.equals(to) || WAIT_CONFIRM.equals(to)) {
+        if (OrderStatusEnum.IN_SERVICE.code().equals(to) || OrderStatusEnum.WAIT_CONFIRM.code().equals(to)) {
             // 校验接单志愿者。
             checkAssignedVolunteer(order, user);
         }
         // 确认完成只能由老人本人或已绑定亲情号操作。
-        if (COMPLETED.equals(to)) {
+        if (OrderStatusEnum.COMPLETED.code().equals(to)) {
             // 校验确认权限。
             checkConfirmPermission(order, user);
         }
@@ -691,27 +701,45 @@ public class OrderAppServiceImpl implements OrderAppService {
         return UserContext.get();
     }
 
-    private void log(ServiceOrder order, String from, String to, Long operator, String type) {
+    private void log(ServiceOrder order, String from, String to, Long operator, OrderOperateTypeEnum type) {
         // 通过实体工厂方法构造状态日志，减少 Service 对日志字段的直接拼装。
-        OrderStatusLog log = OrderStatusLog.of(order, from, to, operator, type);
+        OrderStatusLog log = OrderStatusLog.of(order, from, to, operator, type.code());
         // 插入状态日志。
         logMapper.insert(log);
     }
 
-    private void send(ServiceOrder order, String event, String routing, Long operator) {
+    private void send(ServiceOrder order, OrderEventTypeEnum event, MqEnum routing, Long operator) {
         // 生成事件 ID，生产端和消费端都用它做幂等。
         String eventId = UUID.randomUUID().toString();
         // 构造订单事件。
-        OrderEventDTO dto = new OrderEventDTO(eventId, event, order.getCommunityId(), order.getId(), order.getOrderNo(), order.getElderUserId(), operator, "订单事件：" + event, LocalDateTime.now());
+        OrderEventDTO dto = new OrderEventDTO(eventId, event.code(), order.getCommunityId(), order.getId(), order.getOrderNo(), order.getElderUserId(), operator, event.message(), LocalDateTime.now());
         try {
             // 订单事务内只写 Outbox，不直接阻塞发送 MQ。
             String payload = objectMapper.writeValueAsString(dto);
             // 插入本地消息表，事务提交后由定时任务发送。
-            outboxMapper.insert(OrderEventOutbox.init(eventId, order.getId(), event, MqConstants.ORDER_EVENT_EXCHANGE, routing, payload));
+            outboxMapper.insert(OrderEventOutbox.init(eventId, order.getId(), event.code(), MqEnum.ORDER_EVENT_EXCHANGE.code(), routing.code(), payload));
         } catch (JsonProcessingException exception) {
             // 序列化失败说明代码或字段异常，必须回滚当前业务事务。
             throw new BizException(ErrorCode.SYSTEM_ERROR, "订单事件序列化失败");
         }
+    }
+
+    /**
+     * 事务提交后发送订单超时延迟消息。
+     */
+    private void sendTimeoutAfterCommit(ServiceOrder order) {
+        OrderTimeoutMessage message = new OrderTimeoutMessage(order.getId(), order.getCommunityId(), order.getGrabDeadline());
+        Runnable sender = () -> timeoutProducer.sendTimeoutMessage(message, OrderTimeoutEnum.PUBLIC_POOL_GRAB_TIMEOUT.timeoutMillis());
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    sender.run();
+                }
+            });
+            return;
+        }
+        sender.run();
     }
 
     private OrderVO toVO(ServiceOrder o) {
@@ -748,15 +776,15 @@ public class OrderAppServiceImpl implements OrderAppService {
      */
     private void checkReadPermission(ServiceOrder order, UserInfoDTO user) {
         // 老人本人可以看自己的订单。
-        boolean elderOwner = UserContext.hasRole(RoleConstants.ELDER) && user.userId().equals(order.getElderUserId());
+        boolean elderOwner = UserContext.hasRole(RoleEnum.ELDER) && user.userId().equals(order.getElderUserId());
         // 亲情号自己代发可以看。
-        boolean familyCreator = UserContext.hasRole(RoleConstants.FAMILY) && user.userId().equals(order.getCreatorUserId());
+        boolean familyCreator = UserContext.hasRole(RoleEnum.FAMILY) && user.userId().equals(order.getCreatorUserId());
         // 亲情号绑定老人也可以看。
-        boolean familyBound = UserContext.hasRole(RoleConstants.FAMILY) && Boolean.TRUE.equals(userFeignClient.checkFamilyBind(user.communityId(), user.userId(), order.getElderUserId()).data());
+        boolean familyBound = UserContext.hasRole(RoleEnum.FAMILY) && Boolean.TRUE.equals(userFeignClient.checkFamilyBind(user.communityId(), user.userId(), order.getElderUserId()).data());
         // 志愿者接单后可以看。
-        boolean assignedVolunteer = UserContext.hasRole(RoleConstants.VOLUNTEER) && user.userId().equals(order.getAssignedVolunteerUserId());
+        boolean assignedVolunteer = UserContext.hasRole(RoleEnum.VOLUNTEER) && user.userId().equals(order.getAssignedVolunteerUserId());
         // 志愿者可以查看公共池待抢订单。
-        boolean publicPool = UserContext.hasRole(RoleConstants.VOLUNTEER) && PUBLIC_POOL.equals(order.getAssignMode()) && PENDING_ASSIGN.equals(order.getOrderStatus());
+        boolean publicPool = UserContext.hasRole(RoleEnum.VOLUNTEER) && OrderAssignModeEnum.PUBLIC_POOL.code().equals(order.getAssignMode()) && OrderStatusEnum.PENDING_ASSIGN.code().equals(order.getOrderStatus());
         // 所有条件都不满足时拒绝。
         if (!elderOwner && !familyCreator && !familyBound && !assignedVolunteer && !publicPool) {
             // 抛出无权限异常。
@@ -769,7 +797,7 @@ public class OrderAppServiceImpl implements OrderAppService {
      */
     private void checkAssignedVolunteer(ServiceOrder order, UserInfoDTO user) {
         // 当前用户必须是志愿者并且等于订单接单志愿者。
-        boolean assignedVolunteer = UserContext.hasRole(RoleConstants.VOLUNTEER) && user.userId().equals(order.getAssignedVolunteerUserId());
+        boolean assignedVolunteer = UserContext.hasRole(RoleEnum.VOLUNTEER) && user.userId().equals(order.getAssignedVolunteerUserId());
         // 不匹配时禁止操作。
         if (!assignedVolunteer) {
             // 抛出无权限异常。
@@ -782,11 +810,11 @@ public class OrderAppServiceImpl implements OrderAppService {
      */
     private void checkConfirmPermission(ServiceOrder order, UserInfoDTO user) {
         // 老人本人可以确认。
-        boolean elderOwner = UserContext.hasRole(RoleConstants.ELDER) && user.userId().equals(order.getElderUserId());
+        boolean elderOwner = UserContext.hasRole(RoleEnum.ELDER) && user.userId().equals(order.getElderUserId());
         // 亲情号创建人可以确认。
-        boolean familyCreator = UserContext.hasRole(RoleConstants.FAMILY) && user.userId().equals(order.getCreatorUserId());
+        boolean familyCreator = UserContext.hasRole(RoleEnum.FAMILY) && user.userId().equals(order.getCreatorUserId());
         // 已绑定亲情号可以确认。
-        boolean familyBound = UserContext.hasRole(RoleConstants.FAMILY) && Boolean.TRUE.equals(userFeignClient.checkFamilyBind(user.communityId(), user.userId(), order.getElderUserId()).data());
+        boolean familyBound = UserContext.hasRole(RoleEnum.FAMILY) && Boolean.TRUE.equals(userFeignClient.checkFamilyBind(user.communityId(), user.userId(), order.getElderUserId()).data());
         // 三种条件都不满足时禁止确认。
         if (!elderOwner && !familyCreator && !familyBound) {
             // 抛出无权限异常。
@@ -801,10 +829,10 @@ public class OrderAppServiceImpl implements OrderAppService {
         // 所有订单查询都必须限定 community_id。
         QueryWrapper<ServiceOrder> qw = new QueryWrapper<ServiceOrder>().eq("community_id", user.communityId()).eq("deleted", 0);
         // 志愿者查看自己接到的订单。
-        if (UserContext.hasRole(RoleConstants.VOLUNTEER)) {
+        if (UserContext.hasRole(RoleEnum.VOLUNTEER)) {
             // 按接单志愿者过滤。
             qw.eq("assigned_volunteer_user_id", user.userId());
-        } else if (UserContext.hasRole(RoleConstants.FAMILY)) {
+        } else if (UserContext.hasRole(RoleEnum.FAMILY)) {
             // 亲情号查看自己代发的订单。
             qw.eq("creator_user_id", user.userId());
         } else {
@@ -831,7 +859,7 @@ public class OrderAppServiceImpl implements OrderAppService {
 
     /**
      * 统计多个兼容状态的订单数量。
-     * 说明：第二版生产状态使用 PENDING_ASSIGN/ASSIGNED，同时兼容历史 WAIT_GRAB/WAIT_SERVICE 数据。
+     * 说明：第二版生产状态使用 OrderStatusEnum.PENDING_ASSIGN.code()/ASSIGNED，同时兼容历史 OrderStatusEnum.WAIT_GRAB.code()/OrderStatusEnum.WAIT_SERVICE.code() 数据。
      */
     private long countByStatuses(QueryWrapper<ServiceOrder> base, String... statuses) {
         // 重新读取当前用户，避免复用可变 QueryWrapper。
@@ -914,7 +942,7 @@ public class OrderAppServiceImpl implements OrderAppService {
      */
     private Long familyUserId(ServiceOrder order) {
         // 只有亲情号创建的订单才返回 familyUserId。
-        return RoleConstants.FAMILY.equals(order.getCreatorRole()) ? order.getCreatorUserId() : null;
+        return RoleEnum.FAMILY.code().equals(order.getCreatorRole()) ? order.getCreatorUserId() : null;
     }
 
     /**

@@ -2,7 +2,7 @@ package com.eldercare.user.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.eldercare.common.annotation.RequireRole;
-import com.eldercare.common.constant.RoleConstants;
+import com.eldercare.common.enums.RoleEnum;
 import com.eldercare.common.context.UserContext;
 import com.eldercare.common.response.Result;
 import com.eldercare.user.entity.ElderProfile;
@@ -22,7 +22,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/admin/users")
-@RequireRole(RoleConstants.ADMIN)
+@RequireRole(RoleEnum.ADMIN)
 public class UserAdminController {
     /** 用户账号 Mapper。 */
     private final UserAccountMapper userAccountMapper;

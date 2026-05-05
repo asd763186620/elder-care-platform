@@ -117,4 +117,14 @@ public interface OrderAppService {
      * @return 本次关闭数量。
      */
     int autoCloseTimeoutOrders();
+
+    /**
+     * 关闭单个超时未抢单订单。
+     * 说明：由 RabbitMQ 死信队列触发，方法内部必须幂等。
+     *
+     * @param orderId     订单 ID。
+     * @param communityId 社区 ID。
+     * @return true 表示本次成功关闭；false 表示订单已不满足关闭条件。
+     */
+    boolean closeTimeoutOrder(Long orderId, Long communityId);
 }

@@ -1,7 +1,7 @@
 package com.eldercare.common.aspect;
 
 import com.eldercare.common.annotation.RepeatSubmit;
-import com.eldercare.common.constant.RedisKeyConstants;
+import com.eldercare.common.enums.RedisKeyEnum;
 import com.eldercare.common.context.UserContext;
 import com.eldercare.common.context.UserInfoDTO;
 import com.eldercare.common.exception.BizException;
@@ -72,7 +72,7 @@ public class RepeatSubmitAspect {
         // 计算请求体和参数摘要。
         String requestHash = hash(joinPoint.getArgs());
         // 按需求生成 Redis Key：repeat:{userId}:{uri}:{requestHash}。
-        String key = RedisKeyConstants.REPEAT_SUBMIT + userInfo.userId() + ":" + request.getRequestURI() + ":" + requestHash;
+        String key = RedisKeyEnum.REPEAT_SUBMIT.code() + userInfo.userId() + ":" + request.getRequestURI() + ":" + requestHash;
         // 通过 setIfAbsent 实现“第一次成功写入，重复提交写入失败”。
         Boolean stored = redisTemplate.opsForValue().setIfAbsent(key, "1", Duration.ofSeconds(repeatSubmit.expireSeconds()));
         // stored 为 false 表示同一个幂等窗口内已经提交过相同请求。

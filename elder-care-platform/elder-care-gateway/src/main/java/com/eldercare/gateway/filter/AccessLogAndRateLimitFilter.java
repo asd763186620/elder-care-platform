@@ -1,6 +1,6 @@
 package com.eldercare.gateway.filter;
 
-import com.eldercare.common.constant.HeaderConstants;
+import com.eldercare.common.enums.HeaderEnum;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -94,7 +94,7 @@ public class AccessLogAndRateLimitFilter implements GlobalFilter, Ordered {
     /** 获取限流主体。 */
     private String clientKey(ServerWebExchange exchange) {
         // 优先使用网关 JWT 透传后的用户 ID。
-        String userId = exchange.getRequest().getHeaders().getFirst(HeaderConstants.USER_ID);
+        String userId = exchange.getRequest().getHeaders().getFirst(HeaderEnum.USER_ID.code());
         // 已登录时按用户限流。
         if (userId != null && !userId.isBlank()) return "u:" + userId;
         // 未登录时按 IP 限流。
@@ -129,8 +129,8 @@ public class AccessLogAndRateLimitFilter implements GlobalFilter, Ordered {
         Integer status = exchange.getResponse().getStatusCode() == null ? null : exchange.getResponse().getStatusCode().value();
         // 打印访问日志，不输出 Authorization 等敏感头。
         log.info("api access traceId={} userId={} role={} communityId={} method={} path={} query={} status={} cost={}ms ip={}",
-                traceId, request.getHeaders().getFirst(HeaderConstants.USER_ID), request.getHeaders().getFirst(HeaderConstants.USER_ROLE),
-                request.getHeaders().getFirst(HeaderConstants.COMMUNITY_ID), request.getMethod(), request.getURI().getPath(),
+                traceId, request.getHeaders().getFirst(HeaderEnum.USER_ID.code()), request.getHeaders().getFirst(HeaderEnum.USER_ROLE.code()),
+                request.getHeaders().getFirst(HeaderEnum.COMMUNITY_ID.code()), request.getMethod(), request.getURI().getPath(),
                 request.getURI().getRawQuery(), status, cost, clientIp(exchange));
         // 慢接口单独 warn。
         if (cost > SLOW_API_MS) {
